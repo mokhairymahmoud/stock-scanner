@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: stock-scanner-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - stock-scanner-network
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: stock-scanner-timescaledb
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: stock_scanner
+    volumes:
+      - timescaledb-data:/var/lib/postgresql/data
+      - ${PWD}/scripts/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - stock-scanner-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: stock-scanner-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ${PWD}/config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - stock-scanner-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: stock-scanner-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_INSTALL_PLUGINS: ""
+    volumes:
+      - grafana-data:/var/lib/grafana
+      # Grafana provisioning directory - create if needed: mkdir -p config/grafana/provisioning
+      # - ../config/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - stock-scanner-network
+
+volumes:
+  redis-data:
+  timescaledb-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  stock-scanner-network:
+    driver: bridge
+

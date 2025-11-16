@@ -1,0 +1,998 @@
+# Detailed Implementation Plan — Real-Time Trading Scanner
+
+## Overview
+This document provides a comprehensive, phase-by-phase implementation plan for the real-time trading scanner system. Each phase builds upon the previous one, with clear dependencies and deliverables.
+
+---
+
+## Phase 0: Project Setup & Foundation (Week 1) ✅ COMPLETE
+
+### Goals
+- ✅ Set up project structure
+- ✅ Configure development environment
+- ✅ Establish CI/CD basics
+- ✅ Set up local infrastructure (Docker Compose)
+
+### Tasks
+
+#### 0.1 Project Structure Setup ✅
+- [x] Initialize Go module (`go mod init`)
+- [x] Create directory structure per MVP spec:
+  ```
+  /cmd
+    /ingest
+    /scanner
+    /bars
+    /indicator
+    /ws_gateway
+    /api
+  /internal
+    /config
+    /data
+    /rules
+    /scanner
+    /models
+    /pubsub
+    /storage
+  /pkg
+    /indicator
+    /timeseries
+    /logger
+  /scripts
+    /migrations
+  /config
+  /docs
+  /tests
+  ```
+- [x] Add `.gitignore` for Go
+- [x] Create `README.md` with setup instructions
+- [x] Create placeholder main files for all services
+- [x] Create `Makefile` with common commands
+
+#### 0.2 Configuration Management ✅
+- [x] Implement config package (`internal/config`)
+  - [x] Environment variable loading
+  - [x] Config structs for each service
+  - [x] Validation logic
+  - [x] Default values
+- [x] Create `config/env.example` with all required vars
+- [x] Add config validation on startup
+
+#### 0.3 Logging & Observability Foundation ✅
+- [x] Implement structured logging (`pkg/logger`)
+  - [x] JSON structured logs
+  - [x] Log levels (debug, info, warn, error)
+  - [x] Context propagation
+- [x] Set up OpenTelemetry tracing foundation
+  - [x] Trace initialization helpers
+  - [x] Span creation helpers (placeholders)
+- [x] Set up Prometheus metrics foundation
+  - [x] Metrics registry
+  - [x] Common metric helpers
+
+#### 0.4 Local Infrastructure (Docker Compose) ✅
+- [x] Create `config/docker-compose.yaml`:
+  - [x] Redis (with persistence)
+  - [x] TimescaleDB (PostgreSQL with TimescaleDB extension)
+  - [x] Prometheus
+  - [x] Grafana (optional for local dev)
+- [x] Create initialization scripts:
+  - [x] TimescaleDB schema setup (`scripts/migrations/001_create_bars_table.sql`)
+  - [x] Prometheus configuration (`config/prometheus.yml`)
+- [x] Document local setup in README
+
+#### 0.5 Data Models & Types ✅
+- [x] Define core data structures (`internal/models`):
+  - [x] `Tick` struct
+  - [x] `Bar1m` struct
+  - [x] `LiveBar` struct
+  - [x] `SymbolState` struct
+  - [x] `Indicator` struct
+  - [x] `Rule` struct
+  - [x] `Alert` struct
+- [x] Add JSON serialization tags
+- [x] Add validation methods
+- [x] Create unit tests for models (all passing)
+
+#### 0.6 Storage Interfaces ✅
+- [x] Define storage interfaces (`internal/storage`):
+  - [x] `BarStorage` interface (TimescaleDB)
+  - [x] `AlertStorage` interface (ClickHouse/TimescaleDB)
+  - [x] `RedisClient` interface (wrappers)
+- [x] Create mock implementations for testing
+
+### Phase 0 Completion Summary
+
+**Status:** ✅ Complete
+
+**Deliverables:**
+- ✅ Complete project structure with all directories and placeholder main files
+- ✅ Configuration management system with environment variable support
+- ✅ Structured logging with zap and Prometheus metrics foundation
+- ✅ Docker Compose setup with Redis, TimescaleDB, Prometheus, and Grafana
+- ✅ All core data models with validation and unit tests (all passing)
+- ✅ Storage interfaces with mock implementations for testing
+- ✅ Makefile for common development tasks
+- ✅ Comprehensive README with setup instructions
+
+**Verification:**
+- All code compiles successfully
+- All unit tests pass
+- No linter errors
+- Dependencies properly managed
+
+**Ready for:** Phase 1 - Core Data Pipeline
+
+---
+
+## Phase 1: Core Data Pipeline (Weeks 2-3)
+
+### Goals
+- Implement market data ingestion
+- Build bar aggregation service
+- Establish data flow from ingestion to storage
+
+### Dependencies
+- Phase 0 complete
+
+### Tasks
+
+#### 1.1 Market Data Ingest Service (`cmd/ingest`)
+
+**1.1.1 Provider Abstraction**
+- [ ] Create provider interface (`internal/data/provider.go`)
+  - [ ] `Connect()` method
+  - [ ] `Subscribe(symbols []string)` method
+  - [ ] `Unsubscribe(symbols []string)` method
+  - [ ] `Close()` method
+- [ ] Implement mock provider for testing
+- [ ] Create provider factory/registry
+
+**1.1.2 WebSocket Connection Management**
+- [ ] Implement WebSocket client wrapper
+- [ ] Connection retry logic with exponential backoff
+- [ ] Heartbeat/ping-pong handling
+- [ ] Reconnection strategy
+- [ ] Connection state monitoring
+
+**1.1.3 Data Normalization**
+- [ ] Create tick normalizer (`internal/data/normalizer.go`)
+  - [ ] Normalize different provider formats to common `Tick` struct
+  - [ ] Handle trade vs quote messages
+  - [ ] Timestamp normalization (UTC)
+  - [ ] Price/volume normalization
+- [ ] Add unit tests for normalization
+
+**1.1.4 Stream Publishing**
+- [ ] Implement Redis Streams publisher (`internal/pubsub/redis_stream.go`)
+  - [ ] Partition by symbol (hash-based)
+  - [ ] Batch publishing for efficiency
+  - [ ] Error handling and retries
+  - [ ] Metrics for publish rate/latency
+- [ ] Alternative: Kafka publisher (optional, can defer)
+- [ ] Add configuration for stream names/partitions
+
+**1.1.5 Ingest Service Main**
+- [ ] Implement main service loop
+- [ ] Graceful shutdown handling
+- [ ] Health check endpoint
+- [ ] Metrics endpoint
+- [ ] Configuration loading
+- [ ] Integration tests with mock provider
+
+#### 1.2 Bar Aggregator Service (`cmd/bars`)
+
+**1.2.1 Bar Aggregation Logic**
+- [ ] Implement bar builder (`internal/bars/aggregator.go`)
+  - [ ] Live bar state per symbol (in-memory map)
+  - [ ] Update logic on tick:
+    - [ ] Update high/low
+    - [ ] Update close
+    - [ ] Accumulate volume
+    - [ ] Update VWAP numerator/denominator
+  - [ ] Minute boundary detection
+  - [ ] Bar finalization logic
+- [ ] Thread-safe state management
+- [ ] Unit tests for aggregation logic
+
+**1.2.2 Redis Stream Consumer**
+- [ ] Implement Redis Stream consumer (`internal/pubsub/redis_consumer.go`)
+  - [ ] Consumer group support
+  - [ ] Partition assignment
+  - [ ] Message acknowledgment
+  - [ ] Error handling
+  - [ ] Lag monitoring
+- [ ] Process ticks from stream
+- [ ] Update live bars
+
+**1.2.3 Live Bar Publishing**
+- [ ] Publish live bar snapshots to Redis
+  - [ ] Key: `livebar:{symbol}`
+  - [ ] JSON serialization
+  - [ ] TTL (e.g., 5 minutes)
+- [ ] Publish finalized bars to Redis Stream
+  - [ ] Stream: `bars.finalized`
+  - [ ] Include all bar data
+
+**1.2.4 TimescaleDB Integration**
+- [ ] Implement TimescaleDB writer (`internal/storage/timescale.go`)
+  - [ ] Connection pooling
+  - [ ] Hypertable creation (migration script already exists from Phase 0)
+  - [ ] Batch insert for finalized bars
+  - [ ] Async write queue
+  - [ ] Error handling and retries
+- [x] Create migration script (`scripts/migrations/001_create_bars_table.sql`) ✅ (Completed in Phase 0)
+- [ ] Add metrics for write latency/errors
+
+**1.2.5 Bar Aggregator Service Main**
+- [ ] Implement main service loop
+- [ ] Graceful shutdown
+- [ ] Health checks
+- [ ] Metrics exposure
+- [ ] Integration tests
+
+#### 1.3 Testing & Validation
+- [ ] End-to-end test: Ingest → Bar Aggregator → TimescaleDB
+- [ ] Load test with mock data (1000+ symbols)
+- [ ] Verify bar accuracy (compare with known data)
+- [ ] Test minute boundary handling
+- [ ] Test reconnection scenarios
+
+---
+
+## Phase 2: Indicator Engine (Week 4)
+
+### Goals
+- Compute technical indicators from finalized bars
+- Publish indicators to Redis
+- Support multiple indicator types
+
+### Dependencies
+- Phase 1 complete (bar aggregator publishing finalized bars)
+
+### Tasks
+
+#### 2.1 Indicator Package (`pkg/indicator`)
+
+**2.1.1 Core Indicator Interface**
+- [ ] Define `Indicator` interface
+- [ ] Define `Calculator` interface for each indicator type
+- [ ] Create indicator registry
+
+**2.1.2 Implement Indicators**
+- [ ] RSI (Relative Strength Index)
+  - [ ] Window-based calculation
+  - [ ] Incremental updates
+- [ ] EMA (Exponential Moving Average)
+  - [ ] Multiple periods (EMA20, EMA50, etc.)
+  - [ ] Incremental calculation
+- [ ] VWAP (Volume Weighted Average Price)
+  - [ ] Window-based (5m, 15m, 1h)
+  - [ ] Incremental updates
+- [ ] SMA (Simple Moving Average)
+- [ ] Volume indicators:
+  - [ ] Average volume (5m, 15m, 1h windows)
+  - [ ] Relative volume calculation
+- [ ] Price change indicators:
+  - [ ] Price change % (1m, 5m, 15m)
+- [ ] Unit tests for each indicator
+
+**2.1.3 Indicator State Management**
+- [ ] Maintain rolling windows per symbol
+- [ ] Efficient data structures (ring buffers)
+- [ ] Thread-safe updates
+
+#### 2.2 Indicator Engine Service (`cmd/indicator`)
+
+**2.2.1 Bar Consumer**
+- [ ] Subscribe to `bars.finalized` stream
+- [ ] Process finalized bars
+- [ ] Update indicator windows
+
+**2.2.2 Indicator Computation**
+- [ ] Compute indicators after bar finalization
+- [ ] Batch computation for efficiency
+- [ ] Handle missing data gracefully
+
+**2.2.3 Indicator Publishing**
+- [ ] Publish indicators to Redis
+  - [ ] Key: `ind:{symbol}`
+  - [ ] JSON structure with all indicators
+  - [ ] TTL (e.g., 10 minutes)
+- [ ] Publish to Redis Stream (optional): `indicators.updated`
+- [ ] Metrics for computation latency
+
+**2.2.4 Indicator Engine Main**
+- [ ] Service initialization
+- [ ] Graceful shutdown
+- [ ] Health checks
+- [ ] Metrics
+- [ ] Integration tests
+
+#### 2.3 Testing
+- [ ] Unit tests for indicator calculations
+- [ ] Integration test: Bar → Indicator Engine → Redis
+- [ ] Verify indicator accuracy against known values
+- [ ] Test with missing/incomplete data
+
+---
+
+## Phase 3: Rule Engine & Scanner Worker (Weeks 5-7)
+
+### Goals
+- Implement rule definition and compilation
+- Build scanner worker with <1s scan cycle
+- Support multiple rule types and conditions
+
+### Dependencies
+- Phase 2 complete (indicators available)
+
+### Tasks
+
+#### 3.1 Rule Engine (`internal/rules`)
+
+**3.1.1 Rule Data Structures**
+- [ ] Define `Rule` struct
+- [ ] Define `Condition` struct
+- [ ] Define `CompiledRule` type (function)
+- [ ] Rule validation logic
+
+**3.1.2 Rule Parser**
+- [ ] JSON rule parser
+- [ ] Validate rule syntax
+- [ ] Validate metric references
+- [ ] Validate operators and values
+
+**3.1.3 Rule Compilation**
+- [ ] Implement rule compiler (`internal/rules/compiler.go`)
+  - [ ] Parse conditions
+  - [ ] Build closure/function for evaluation
+  - [ ] Optimize condition evaluation order
+  - [ ] Handle metric lookups
+- [ ] Support operators: `>`, `<`, `>=`, `<=`, `==`, `!=`
+- [ ] Support logical operators: `AND`, `OR` (in conditions array)
+- [ ] Compile-time validation
+- [ ] Unit tests for compilation
+
+**3.1.4 Metric Resolver**
+- [ ] Implement metric resolver (`internal/rules/metrics.go`)
+  - [ ] Map metric names to computation functions
+  - [ ] Support computed metrics (e.g., `price_change_5m_pct`)
+  - [ ] Support direct indicator lookups
+- [ ] Metric registry
+- [ ] Unit tests
+
+**3.1.5 Rule Storage**
+- [ ] Rule storage interface
+- [ ] In-memory rule store (for MVP)
+- [ ] Rule reload mechanism
+- [ ] Rule versioning (optional)
+
+#### 3.2 Scanner Worker Core (`internal/scanner`)
+
+**3.2.1 Symbol State Management**
+- [ ] Implement `SymbolState` struct
+- [ ] Implement state map with RWMutex
+- [ ] State update methods (thread-safe)
+- [ ] State snapshot for scanning
+
+**3.2.2 Tick Ingestion**
+- [ ] Subscribe to tick stream (partitioned)
+- [ ] Update live bar on tick
+- [ ] Update VWAP components
+- [ ] Handle tick ordering
+- [ ] Buffer management
+
+**3.2.3 Indicator Ingestion**
+- [ ] Subscribe to indicator updates
+- [ ] Update symbol state indicators
+- [ ] Handle indicator stream lag
+
+**3.2.4 Bar Finalization Handler**
+- [ ] Subscribe to finalized bars
+- [ ] Update `lastFinalBars` ring buffer
+- [ ] Trigger indicator recomputation if needed
+
+**3.2.5 Scan Loop**
+- [ ] Implement 1-second ticker
+- [ ] Symbol iteration (snapshot)
+- [ ] Rule evaluation per symbol
+- [ ] Cooldown checking
+- [ ] Alert emission
+- [ ] Performance optimization:
+  - [ ] Minimize allocations
+  - [ ] Use sync.Pool for temporary objects
+  - [ ] Lock-free reads where possible
+- [ ] Metrics for scan cycle time
+
+**3.2.6 Cooldown Management**
+- [ ] Implement cooldown tracker
+- [ ] Per-rule, per-symbol cooldown
+- [ ] Cleanup of expired cooldowns
+- [ ] Thread-safe operations
+
+**3.2.7 Alert Emission**
+- [ ] Create alert struct
+- [ ] Generate alert ID (UUID)
+- [ ] Publish to Redis pubsub/channel
+- [ ] Publish to Redis Stream (optional)
+- [ ] Include trace ID
+- [ ] Metrics for alert emission
+
+**3.2.8 Partitioning & Ownership**
+- [ ] Implement symbol partitioning logic
+  - [ ] Hash-based: `hash(symbol) % worker_count`
+  - [ ] Consistent hashing
+- [ ] Worker ID assignment
+- [ ] Partition discovery
+- [ ] Rebalancing handling (consumer groups)
+
+**3.2.9 State Rehydration**
+- [ ] On startup: load recent bars from TimescaleDB
+- [ ] Load live bars from Redis
+- [ ] Load indicators from Redis
+- [ ] Initialize symbol state
+- [ ] Readiness probe (wait for rehydration)
+
+#### 3.3 Scanner Worker Service (`cmd/scanner`)
+
+**3.3.1 Service Main**
+- [ ] Initialize worker
+- [ ] Load rules
+- [ ] Set up subscriptions
+- [ ] Start scan loop
+- [ ] Graceful shutdown
+- [ ] Health checks
+- [ ] Metrics endpoint
+
+**3.3.2 Configuration**
+- [ ] Worker ID/partition config
+- [ ] Symbol universe config
+- [ ] Scan interval config
+- [ ] Buffer sizes
+- [ ] Cooldown defaults
+
+#### 3.4 Testing
+
+**3.4.1 Unit Tests**
+- [ ] Rule compilation tests
+- [ ] Metric resolution tests
+- [ ] State update tests
+- [ ] Cooldown tests
+
+**3.4.2 Integration Tests**
+- [ ] End-to-end: Ingest → Bars → Indicators → Scanner → Alerts
+- [ ] Test rule matching
+- [ ] Test cooldown enforcement
+- [ ] Test partition assignment
+
+**3.4.3 Performance Tests**
+- [ ] Load test with 2000+ symbols
+- [ ] Measure scan cycle time (target <800ms)
+- [ ] Test with varying rule counts
+- [ ] Test with tick bursts
+- [ ] Profile and optimize hot paths
+
+**3.4.4 Chaos Tests**
+- [ ] Worker restart scenarios
+- [ ] Partition rebalancing
+- [ ] Network interruptions
+- [ ] Verify no duplicate alerts
+
+---
+
+## Phase 4: Alert Service & WebSocket Gateway (Week 8)
+
+### Goals
+- Implement alert deduplication and filtering
+- Build WebSocket gateway for real-time delivery
+- Persist alerts to storage
+
+### Dependencies
+- Phase 3 complete (scanner emitting alerts)
+
+### Tasks
+
+#### 4.1 Alert Service (`cmd/alert` or part of API)
+
+**4.1.1 Alert Consumer**
+- [ ] Subscribe to alert stream/pubsub
+- [ ] Process alerts
+- [ ] Deduplication logic
+  - [ ] Idempotency keys
+  - [ ] Redis-based dedupe (short-term)
+  - [ ] Database check (long-term)
+
+**4.1.2 User Filtering**
+- [ ] User subscription management
+- [ ] Filter alerts by user preferences
+- [ ] Symbol watchlists
+- [ ] Rule subscriptions
+
+**4.1.3 Cooldown Enforcement**
+- [ ] Per-user, per-rule cooldowns
+- [ ] Configurable cooldown periods
+- [ ] Cooldown storage (Redis)
+
+**4.1.4 Alert Persistence**
+- [ ] Write alerts to ClickHouse/TimescaleDB
+- [ ] Batch inserts
+- [ ] Async writes
+- [ ] Create migration script
+
+**4.1.5 Alert Routing**
+- [ ] Route to WebSocket gateway
+- [ ] Route to email queue (optional)
+- [ ] Route to push notification queue (optional)
+- [ ] Metrics for routing
+
+#### 4.2 WebSocket Gateway (`cmd/ws_gateway`)
+
+**4.2.1 WebSocket Server**
+- [ ] HTTP upgrade handler
+- [ ] Connection management
+- [ ] Connection lifecycle (connect, disconnect, ping/pong)
+- [ ] Connection registry (in-memory or Redis)
+- [ ] Graceful shutdown
+
+**4.2.2 Authentication**
+- [ ] JWT token validation
+- [ ] User identification
+- [ ] Connection authorization
+
+**4.2.3 Message Broadcasting**
+- [ ] Receive alerts from alert service
+- [ ] Filter by user subscriptions
+- [ ] Broadcast to connected clients
+- [ ] Handle slow clients (buffering/dropping)
+- [ ] Metrics for message delivery
+
+**4.2.4 Client Protocol**
+- [ ] Define message format (JSON)
+- [ ] Subscribe/unsubscribe messages
+- [ ] Heartbeat messages
+- [ ] Error messages
+- [ ] Alert message format
+
+**4.2.5 Connection Management**
+- [ ] Connection pool
+- [ ] Rate limiting per connection
+- [ ] Max connections per user
+- [ ] Connection health monitoring
+
+#### 4.3 Testing
+- [ ] Unit tests for alert service
+- [ ] Unit tests for WebSocket gateway
+- [ ] Integration test: Scanner → Alert Service → WebSocket → Client
+- [ ] Load test WebSocket connections (1000+ concurrent)
+- [ ] Test reconnection scenarios
+- [ ] Test message delivery guarantees
+
+---
+
+## Phase 5: REST API Service (Week 9)
+
+### Goals
+- Implement REST API for rule management
+- Provide alert history endpoints
+- User management and authentication
+
+### Dependencies
+- Phase 4 complete (alerts being stored)
+
+### Tasks
+
+#### 5.1 API Service (`cmd/api`)
+
+**5.1.1 API Framework Setup**
+- [ ] Choose framework (Gin, Echo, or stdlib)
+- [ ] Middleware setup:
+  - [ ] CORS
+  - [ ] Authentication
+  - [ ] Request logging
+  - [ ] Error handling
+  - [ ] Rate limiting
+
+**5.1.2 Authentication**
+- [ ] JWT token generation
+- [ ] Token validation middleware
+- [ ] User context injection
+- [ ] OAuth2 integration (optional for MVP)
+
+**5.1.3 Rule Management Endpoints**
+- [ ] `GET /api/v1/rules` - List rules
+- [ ] `GET /api/v1/rules/:id` - Get rule
+- [ ] `POST /api/v1/rules` - Create rule
+- [ ] `PUT /api/v1/rules/:id` - Update rule
+- [ ] `DELETE /api/v1/rules/:id` - Delete rule
+- [ ] `POST /api/v1/rules/:id/validate` - Validate rule
+- [ ] Rule ownership/authorization
+
+**5.1.4 Alert History Endpoints**
+- [ ] `GET /api/v1/alerts` - List alerts (paginated)
+- [ ] `GET /api/v1/alerts/:id` - Get alert details
+- [ ] Filtering: by symbol, rule, date range
+- [ ] Sorting options
+
+**5.1.5 Symbol Management**
+- [ ] `GET /api/v1/symbols` - List available symbols
+- [ ] `GET /api/v1/symbols/:symbol` - Get symbol info
+- [ ] Symbol search/filter
+
+**5.1.6 User Management (Basic)**
+- [ ] `GET /api/v1/user/profile` - Get user profile
+- [ ] `PUT /api/v1/user/profile` - Update profile
+- [ ] User preferences storage
+
+**5.1.7 Health & Metrics**
+- [ ] `GET /health` - Health check
+- [ ] `GET /metrics` - Prometheus metrics
+- [ ] `GET /ready` - Readiness probe
+
+#### 5.2 API Documentation
+- [ ] OpenAPI/Swagger specification
+- [ ] Generate docs from code
+- [ ] Example requests/responses
+
+#### 5.3 Testing
+- [ ] Unit tests for handlers
+- [ ] Integration tests for API endpoints
+- [ ] Authentication tests
+- [ ] Load tests for API
+
+---
+
+## Phase 6: Infrastructure & Deployment (Week 10)
+
+### Goals
+- Containerize all services
+- Set up Kubernetes manifests
+- Configure monitoring and logging
+- Create deployment documentation
+
+### Dependencies
+- All previous phases complete
+
+### Tasks
+
+#### 6.1 Dockerization
+
+**6.1.1 Dockerfiles**
+- [ ] Create Dockerfile for each service
+- [ ] Multi-stage builds for optimization
+- [ ] Use distroless or alpine base images
+- [ ] Set up proper user (non-root)
+- [ ] Health check instructions
+
+**6.1.2 Docker Compose Updates**
+- [ ] Add all services to docker-compose
+- [ ] Configure networking
+- [ ] Set up volumes for persistence
+- [ ] Environment variable management
+- [ ] Development vs production configs
+
+#### 6.2 Kubernetes Manifests
+
+**6.2.1 Deployments**
+- [ ] Deployment manifests for each service
+- [ ] Resource limits and requests
+- [ ] Replica counts
+- [ ] Rolling update strategy
+- [ ] Pod disruption budgets
+
+**6.2.2 Services**
+- [ ] Service manifests (ClusterIP, LoadBalancer)
+- [ ] Service discovery
+- [ ] Port configurations
+
+**6.2.3 ConfigMaps & Secrets**
+- [ ] ConfigMap for non-sensitive config
+- [ ] Secrets management
+- [ ] Environment variable injection
+
+**6.2.4 Horizontal Pod Autoscaling (HPA)**
+- [ ] HPA for scanner workers (CPU + custom metrics)
+- [ ] HPA for other services
+- [ ] Custom metrics (queue depth, scan cycle time)
+
+**6.2.5 Ingress**
+- [ ] Ingress for API service
+- [ ] Ingress for WebSocket gateway
+- [ ] TLS configuration
+- [ ] Rate limiting
+
+#### 6.3 Monitoring & Observability
+
+**6.3.1 Prometheus Configuration**
+- [ ] ServiceMonitor CRDs for each service
+- [ ] Scrape configurations
+- [ ] Alert rules (for Prometheus alerts)
+- [ ] Recording rules
+
+**6.3.2 Grafana Dashboards**
+- [ ] Dashboard for each service
+- [ ] System overview dashboard
+- [ ] Alert dashboard
+- [ ] Performance dashboard (scan cycle times)
+- [ ] Export dashboard JSONs
+
+**6.3.3 Logging**
+- [ ] Centralized logging setup (Loki or ELK)
+- [ ] Log aggregation configuration
+- [ ] Log retention policies
+- [ ] Structured log parsing
+
+**6.3.4 Tracing**
+- [ ] Jaeger or Tempo setup
+- [ ] Trace sampling configuration
+- [ ] Service mesh integration (optional)
+
+#### 6.4 Database Migrations
+
+**6.4.1 Migration Tooling**
+- [ ] Choose migration tool (golang-migrate, etc.)
+- [ ] Create migration scripts:
+  - [ ] TimescaleDB hypertables
+  - [ ] ClickHouse tables
+  - [ ] Indexes
+- [ ] Migration versioning
+- [ ] Rollback scripts
+
+#### 6.5 CI/CD
+
+**6.5.1 CI Pipeline**
+- [ ] GitHub Actions / GitLab CI config
+- [ ] Run tests on PR
+- [ ] Linting (golangci-lint)
+- [ ] Security scanning
+- [ ] Build Docker images
+- [ ] Push to registry
+
+**6.5.2 CD Pipeline**
+- [ ] Deployment to staging
+- [ ] Deployment to production
+- [ ] Blue-green or canary deployment
+- [ ] Rollback procedures
+
+#### 6.6 Documentation
+
+**6.6.1 Deployment Guide**
+- [ ] Prerequisites
+- [ ] Step-by-step deployment instructions
+- [ ] Configuration reference
+- [ ] Troubleshooting guide
+
+**6.6.2 Operations Guide**
+- [ ] Monitoring runbook
+- [ ] Incident response procedures
+- [ ] Scaling procedures
+- [ ] Backup/restore procedures
+
+---
+
+## Phase 7: Testing & Optimization (Week 11)
+
+### Goals
+- Comprehensive end-to-end testing
+- Performance optimization
+- Load testing and capacity planning
+- Bug fixes and stability improvements
+
+### Tasks
+
+#### 7.1 End-to-End Testing
+
+**7.1.1 Test Scenarios**
+- [ ] Full pipeline test: Ingest → Alerts
+- [ ] Multi-worker partitioning test
+- [ ] Reconnection and recovery tests
+- [ ] Data consistency tests
+- [ ] Alert deduplication tests
+
+**7.1.2 Test Infrastructure**
+- [ ] Test data generators
+- [ ] Mock market data provider
+- [ ] Test harness for E2E tests
+- [ ] Test environment setup
+
+#### 7.2 Performance Testing
+
+**7.2.1 Load Tests**
+- [ ] Test with 2000 symbols
+- [ ] Test with 5000 symbols
+- [ ] Test with 10000 symbols
+- [ ] Measure scan cycle times
+- [ ] Measure end-to-end latency
+- [ ] Identify bottlenecks
+
+**7.2.2 Stress Tests**
+- [ ] Tick burst scenarios
+- [ ] High rule count scenarios
+- [ ] Many concurrent WebSocket connections
+- [ ] Database connection pool exhaustion
+- [ ] Memory pressure tests
+
+**7.2.3 Optimization**
+- [ ] Profile hot paths
+- [ ] Optimize allocations
+- [ ] Optimize locking
+- [ ] Optimize serialization
+- [ ] Tune buffer sizes
+- [ ] Tune worker counts
+
+#### 7.3 Stability Testing
+
+**7.3.1 Chaos Engineering**
+- [ ] Random pod kills
+- [ ] Network partitions
+- [ ] Database failures
+- [ ] Redis failures
+- [ ] High latency injection
+- [ ] Verify recovery
+
+**7.3.2 Long-Running Tests**
+- [ ] 24-hour stability test
+- [ ] Memory leak detection
+- [ ] Resource usage monitoring
+- [ ] Alert accuracy over time
+
+#### 7.4 Bug Fixes & Refinement
+- [ ] Fix identified issues
+- [ ] Code review and refactoring
+- [ ] Documentation updates
+- [ ] Performance tuning based on test results
+
+---
+
+## Phase 8: Production Readiness (Week 12)
+
+### Goals
+- Security hardening
+- Production configuration
+- Documentation completion
+- Final validation
+
+### Tasks
+
+#### 8.1 Security
+
+**8.1.1 Security Hardening**
+- [ ] Security audit
+- [ ] Dependency vulnerability scanning
+- [ ] Secrets management review
+- [ ] Network security (firewall rules)
+- [ ] TLS configuration review
+- [ ] Authentication/authorization review
+
+**8.1.2 Compliance**
+- [ ] Data retention policies
+- [ ] Audit logging
+- [ ] PII handling
+- [ ] GDPR considerations (if applicable)
+
+#### 8.2 Production Configuration
+
+**8.2.1 Configuration Review**
+- [ ] Production config values
+- [ ] Resource limits
+- [ ] Scaling parameters
+- [ ] Timeout values
+- [ ] Retry policies
+
+**8.2.2 Backup & Recovery**
+- [ ] Backup procedures
+- [ ] Recovery procedures
+- [ ] Disaster recovery plan
+- [ ] Test backup/restore
+
+#### 8.3 Documentation
+
+**8.3.1 User Documentation**
+- [ ] API documentation
+- [ ] Rule creation guide
+- [ ] WebSocket client guide
+- [ ] Troubleshooting guide
+
+**8.3.2 Developer Documentation**
+- [ ] Architecture diagrams
+- [ ] Code structure guide
+- [ ] Contributing guidelines
+- [ ] Development setup guide
+
+#### 8.4 Final Validation
+- [ ] Production readiness checklist
+- [ ] Performance validation
+- [ ] Security validation
+- [ ] Documentation review
+- [ ] Stakeholder sign-off
+
+---
+
+## Implementation Priorities
+
+### MVP Must-Haves (Phases 0-5)
+1. Project setup and infrastructure
+2. Data pipeline (ingest → bars → indicators)
+3. Scanner worker with basic rules
+4. Alert service and WebSocket gateway
+5. Basic REST API
+
+### Nice-to-Haves (Can defer)
+- ClickHouse (can use TimescaleDB initially)
+- Kafka (can use Redis Streams initially)
+- Advanced authentication (OAuth2)
+- Email/push notifications
+- Advanced monitoring dashboards
+
+---
+
+## Risk Mitigation
+
+### Technical Risks
+1. **Scan cycle time > 1s**
+   - Mitigation: Early performance testing, optimization, horizontal scaling
+   
+2. **Data loss on worker restart**
+   - Mitigation: Durable streams, state rehydration, idempotency
+
+3. **Partition rebalancing issues**
+   - Mitigation: Consumer groups, proper ownership protocol, testing
+
+4. **Memory leaks in long-running workers**
+   - Mitigation: Profiling, memory monitoring, regular restarts
+
+### Operational Risks
+1. **Market data provider outages**
+   - Mitigation: Multiple providers, fallback logic, degraded mode
+
+2. **Database performance**
+   - Mitigation: Proper indexing, connection pooling, monitoring
+
+3. **Scaling bottlenecks**
+   - Mitigation: Load testing, autoscaling, capacity planning
+
+---
+
+## Success Metrics
+
+### Performance
+- Scan cycle time: < 800ms (p95)
+- End-to-end latency (tick → alert): < 2s (p95)
+- System uptime: > 99.9%
+
+### Scalability
+- Support 10,000 symbols
+- Support 100+ concurrent WebSocket connections
+- Horizontal scaling working
+
+### Reliability
+- Zero data loss
+- Graceful degradation
+- Fast recovery from failures
+
+---
+
+## Timeline Summary
+
+- **Week 1**: Phase 0 (Setup)
+- **Weeks 2-3**: Phase 1 (Data Pipeline)
+- **Week 4**: Phase 2 (Indicators)
+- **Weeks 5-7**: Phase 3 (Scanner Worker)
+- **Week 8**: Phase 4 (Alerts & WebSocket)
+- **Week 9**: Phase 5 (REST API)
+- **Week 10**: Phase 6 (Infrastructure)
+- **Week 11**: Phase 7 (Testing & Optimization)
+- **Week 12**: Phase 8 (Production Readiness)
+
+**Total: ~12 weeks for full implementation**
+
+---
+
+## Next Steps
+
+1. Review and approve this implementation plan
+2. Set up project repository and Phase 0 tasks
+3. Begin Phase 0 implementation
+4. Set up regular review checkpoints
+5. Adjust plan based on learnings
+
