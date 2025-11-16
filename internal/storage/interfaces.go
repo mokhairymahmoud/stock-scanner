@@ -54,6 +54,7 @@ type AlertFilter struct {
 type RedisClient interface {
 	// Stream operations
 	PublishToStream(ctx context.Context, stream string, key string, value interface{}) error
+	PublishBatchToStream(ctx context.Context, stream string, messages []map[string]interface{}) error
 	ConsumeFromStream(ctx context.Context, stream string, group string, consumer string) (<-chan StreamMessage, error)
 	AcknowledgeMessage(ctx context.Context, stream string, group string, id string) error
 

@@ -157,6 +157,14 @@ func (m *MockRedisClient) PublishToStream(ctx context.Context, stream string, ke
 	return nil
 }
 
+func (m *MockRedisClient) PublishBatchToStream(ctx context.Context, stream string, messages []map[string]interface{}) error {
+	if m.PublishErr != nil {
+		return m.PublishErr
+	}
+	// Mock implementation
+	return nil
+}
+
 func (m *MockRedisClient) ConsumeFromStream(ctx context.Context, stream string, group string, consumer string) (<-chan StreamMessage, error) {
 	if m.ConsumeErr != nil {
 		return nil, m.ConsumeErr

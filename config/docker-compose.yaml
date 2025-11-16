@@ -81,6 +81,181 @@ services:
     networks:
       - stock-scanner-network
 
+  # Go Microservices
+  ingest:
+    build:
+      context: ${PWD}
+      dockerfile: Dockerfile
+    container_name: stock-scanner-ingest
+    command: ["./ingest"]
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    env_file:
+      - ${PWD}/.env
+    environment:
+      - DB_HOST=timescaledb
+      - REDIS_HOST=redis
+    depends_on:
+      redis:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "sh", "-c", "nc -z localhost 8081 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    networks:
+      - stock-scanner-network
+    restart: unless-stopped
+
+  bars:
+    build:
+      context: ${PWD}
+      dockerfile: Dockerfile
+    container_name: stock-scanner-bars
+    command: ["./bars"]
+    ports:
+      - "8082:8082"
+      - "8083:8083"
+    env_file:
+      - ${PWD}/.env
+    environment:
+      - DB_HOST=timescaledb
+      - REDIS_HOST=redis
+    depends_on:
+      redis:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+      ingest:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "sh", "-c", "nc -z localhost 8083 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    networks:
+      - stock-scanner-network
+    restart: unless-stopped
+
+  indicator:
+    build:
+      context: ${PWD}
+      dockerfile: Dockerfile
+    container_name: stock-scanner-indicator
+    command: ["./indicator"]
+    ports:
+      - "8084:8084"
+      - "8085:8085"
+    env_file:
+      - ${PWD}/.env
+    environment:
+      - REDIS_HOST=redis
+    depends_on:
+      redis:
+        condition: service_healthy
+      bars:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "sh", "-c", "nc -z localhost 8085 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    networks:
+      - stock-scanner-network
+    restart: unless-stopped
+
+  scanner:
+    build:
+      context: ${PWD}
+      dockerfile: Dockerfile
+    container_name: stock-scanner-scanner
+    command: ["./scanner"]
+    ports:
+      - "8086:8086"
+      - "8087:8087"
+    env_file:
+      - ${PWD}/.env
+    environment:
+      - REDIS_HOST=redis
+      - DB_HOST=timescaledb
+    depends_on:
+      redis:
+        condition: service_healthy
+      indicator:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "sh", "-c", "nc -z localhost 8087 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    networks:
+      - stock-scanner-network
+    restart: unless-stopped
+
+  ws-gateway:
+    build:
+      context: ${PWD}
+      dockerfile: Dockerfile
+    container_name: stock-scanner-ws-gateway
+    command: ["./ws-gateway"]
+    ports:
+      - "8088:8088"
+      - "8089:8089"
+    env_file:
+      - ${PWD}/.env
+    environment:
+      - REDIS_HOST=redis
+    depends_on:
+      redis:
+        condition: service_healthy
+      scanner:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "sh", "-c", "nc -z localhost 8089 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    networks:
+      - stock-scanner-network
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ${PWD}
+      dockerfile: Dockerfile
+    container_name: stock-scanner-api
+    command: ["./api"]
+    ports:
+      - "8090:8090"
+      - "8091:8091"
+    env_file:
+      - ${PWD}/.env
+    environment:
+      - DB_HOST=timescaledb
+      - REDIS_HOST=redis
+    depends_on:
+      redis:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "sh", "-c", "nc -z localhost 8091 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    networks:
+      - stock-scanner-network
+    restart: unless-stopped
+
 volumes:
   redis-data:
   timescaledb-data:

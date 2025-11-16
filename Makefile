@@ -30,9 +30,13 @@ clean: ## Clean build artifacts
 	@rm -rf bin/
 	@rm -f coverage.out coverage.html
 
-docker-up: ## Start Docker Compose services
-	@echo "Starting Docker Compose services..."
-	@docker-compose -f config/docker-compose.yaml up -d
+docker-up: ## Start Docker Compose services (infrastructure only)
+	@echo "Starting Docker Compose services (infrastructure)..."
+	@docker-compose -f config/docker-compose.yaml up -d redis timescaledb prometheus grafana
+
+docker-up-all: ## Start all Docker Compose services (including Go services)
+	@echo "Starting all Docker Compose services..."
+	@docker-compose -f config/docker-compose.yaml up -d --build
 
 docker-down: ## Stop Docker Compose services
 	@echo "Stopping Docker Compose services..."
@@ -40,6 +44,16 @@ docker-down: ## Stop Docker Compose services
 
 docker-logs: ## View Docker Compose logs
 	@docker-compose -f config/docker-compose.yaml logs -f
+
+docker-logs-service: ## View logs for a specific service (usage: make docker-logs-service SERVICE=ingest)
+	@docker-compose -f config/docker-compose.yaml logs -f $(SERVICE)
+
+docker-build: ## Build Docker images for all services
+	@echo "Building Docker images..."
+	@docker-compose -f config/docker-compose.yaml build
+
+docker-restart: ## Restart all services
+	@docker-compose -f config/docker-compose.yaml restart
 
 migrate-up: ## Run database migrations
 	@echo "Running migrations..."

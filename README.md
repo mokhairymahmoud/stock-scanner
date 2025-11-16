@@ -27,36 +27,45 @@ git clone <repository-url>
 cd stock-scanner
 ```
 
-### 2. Start Local Infrastructure
+### 2. Configure Environment
 
 ```bash
-docker-compose -f config/docker-compose.yaml up -d
+cp config/env.example .env
+# Edit .env with your configuration (especially MARKET_DATA_API_KEY and MARKET_DATA_API_SECRET)
+```
+
+### 3. Start Services
+
+You have two options:
+
+#### Option A: Docker Compose (Recommended)
+
+```bash
+# Start infrastructure only (Redis, TimescaleDB, Prometheus, Grafana)
+make docker-up
+
+# Or start everything including Go services
+make docker-up-all
+
+# View logs
+make docker-logs
+# Or for a specific service:
+make docker-logs-service SERVICE=ingest
 ```
 
 This starts:
 - Redis (port 6379)
 - TimescaleDB (port 5432)
 - Prometheus (port 9090)
+- Grafana (port 3000)
+- All Go microservices (ports 8080-8091)
 
-### 3. Configure Environment
-
-```bash
-cp config/env.example .env
-# Edit .env with your configuration
-```
-
-### 4. Run Migrations
+#### Option B: Manual (For Development/Debugging)
 
 ```bash
-# Run database migrations
-make migrate-up
-# Or manually:
-psql -h localhost -U postgres -d stock_scanner -f scripts/migrations/001_create_bars_table.sql
-```
+# Start infrastructure
+make docker-up
 
-### 5. Build and Run Services
-
-```bash
 # Build all services
 make build
 
@@ -67,6 +76,15 @@ make run-indicator
 make run-scanner
 make run-ws-gateway
 make run-api
+```
+
+### 4. Run Migrations
+
+```bash
+# Run database migrations
+make migrate-up
+# Or manually:
+psql -h localhost -U postgres -d stock_scanner -f scripts/migrations/001_create_bars_table.sql
 ```
 
 ## Development

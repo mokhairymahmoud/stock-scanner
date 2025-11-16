@@ -14,11 +14,12 @@ This is a condensed checklist version of the implementation plan for quick progr
 - [x] Storage interfaces defined
 
 ## Phase 1: Core Data Pipeline
-- [ ] Market Data Ingest Service
-  - [ ] Provider abstraction
-  - [ ] WebSocket connection management
-  - [ ] Data normalization
-  - [ ] Redis Streams publisher
+- [x] Market Data Ingest Service ✅
+  - [x] Provider abstraction ✅
+  - [x] WebSocket connection management ✅
+  - [x] Data normalization ✅
+  - [x] Redis Streams publisher ✅
+  - [x] Ingest service main ✅
 - [ ] Bar Aggregator Service
   - [ ] Bar aggregation logic
   - [ ] Redis Stream consumer

@@ -139,46 +139,46 @@ This document provides a comprehensive, phase-by-phase implementation plan for t
 
 #### 1.1 Market Data Ingest Service (`cmd/ingest`)
 
-**1.1.1 Provider Abstraction**
-- [ ] Create provider interface (`internal/data/provider.go`)
-  - [ ] `Connect()` method
-  - [ ] `Subscribe(symbols []string)` method
-  - [ ] `Unsubscribe(symbols []string)` method
-  - [ ] `Close()` method
-- [ ] Implement mock provider for testing
-- [ ] Create provider factory/registry
+**1.1.1 Provider Abstraction** ✅
+- [x] Create provider interface (`internal/data/provider.go`)
+  - [x] `Connect()` method
+  - [x] `Subscribe(symbols []string)` method
+  - [x] `Unsubscribe(symbols []string)` method
+  - [x] `Close()` method
+- [x] Implement mock provider for testing
+- [x] Create provider factory/registry
 
-**1.1.2 WebSocket Connection Management**
-- [ ] Implement WebSocket client wrapper
-- [ ] Connection retry logic with exponential backoff
-- [ ] Heartbeat/ping-pong handling
-- [ ] Reconnection strategy
-- [ ] Connection state monitoring
+**1.1.2 WebSocket Connection Management** ✅
+- [x] Implement WebSocket client wrapper
+- [x] Connection retry logic with exponential backoff
+- [x] Heartbeat/ping-pong handling
+- [x] Reconnection strategy
+- [x] Connection state monitoring
 
-**1.1.3 Data Normalization**
-- [ ] Create tick normalizer (`internal/data/normalizer.go`)
-  - [ ] Normalize different provider formats to common `Tick` struct
-  - [ ] Handle trade vs quote messages
-  - [ ] Timestamp normalization (UTC)
-  - [ ] Price/volume normalization
-- [ ] Add unit tests for normalization
+**1.1.3 Data Normalization** ✅
+- [x] Create tick normalizer (`internal/data/normalizer.go`)
+  - [x] Normalize different provider formats to common `Tick` struct
+  - [x] Handle trade vs quote messages
+  - [x] Timestamp normalization (UTC)
+  - [x] Price/volume normalization
+- [x] Add unit tests for normalization
 
-**1.1.4 Stream Publishing**
-- [ ] Implement Redis Streams publisher (`internal/pubsub/redis_stream.go`)
-  - [ ] Partition by symbol (hash-based)
-  - [ ] Batch publishing for efficiency
-  - [ ] Error handling and retries
-  - [ ] Metrics for publish rate/latency
+**1.1.4 Stream Publishing** ✅
+- [x] Implement Redis Streams publisher (`internal/pubsub/redis_stream.go`)
+  - [x] Partition by symbol (hash-based)
+  - [x] Batch publishing for efficiency
+  - [x] Error handling and retries
+  - [x] Metrics for publish rate/latency
 - [ ] Alternative: Kafka publisher (optional, can defer)
-- [ ] Add configuration for stream names/partitions
+- [x] Add configuration for stream names/partitions
 
-**1.1.5 Ingest Service Main**
-- [ ] Implement main service loop
-- [ ] Graceful shutdown handling
-- [ ] Health check endpoint
-- [ ] Metrics endpoint
-- [ ] Configuration loading
-- [ ] Integration tests with mock provider
+**1.1.5 Ingest Service Main** ✅
+- [x] Implement main service loop
+- [x] Graceful shutdown handling
+- [x] Health check endpoint
+- [x] Metrics endpoint
+- [x] Configuration loading
+- [x] Integration tests with mock provider
 
 #### 1.2 Bar Aggregator Service (`cmd/bars`)
 
