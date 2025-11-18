@@ -55,6 +55,18 @@ docker-build: ## Build Docker images for all services
 docker-restart: ## Restart all services
 	@docker-compose -f config/docker-compose.yaml restart
 
+docker-test: ## Test all services
+	@echo "Testing all services..."
+	@./scripts/test_services.sh
+
+docker-deploy: ## Deploy all services
+	@echo "Deploying all services..."
+	@./scripts/deploy.sh
+
+docker-verify: ## Verify deployment
+	@echo "Verifying deployment..."
+	@./scripts/verify_deployment.sh
+
 migrate-up: ## Run database migrations
 	@echo "Running migrations..."
 	@psql -h localhost -U postgres -d stock_scanner -f scripts/migrations/001_create_bars_table.sql

@@ -180,39 +180,69 @@ This document provides a comprehensive, phase-by-phase implementation plan for t
 - [x] Configuration loading
 - [x] Integration tests with mock provider
 
+**1.1.6 Real Provider Implementations**
+- [ ] Implement Alpaca provider (`internal/data/alpaca_provider.go`)
+  - [ ] WebSocket connection to Alpaca stream API
+  - [ ] Authentication (API key/secret)
+  - [ ] Subscribe/unsubscribe to symbols
+  - [ ] Handle Alpaca-specific message formats (trades, quotes, bars)
+  - [ ] Error handling and reconnection logic
+  - [ ] Rate limiting compliance
+- [ ] Implement Polygon.io provider (optional) (`internal/data/polygon_provider.go`)
+  - [ ] WebSocket connection to Polygon.io stream
+  - [ ] Authentication (API key)
+  - [ ] Subscribe/unsubscribe to symbols
+  - [ ] Handle Polygon-specific message formats
+  - [ ] Error handling and reconnection logic
+- [ ] Update normalizer for provider-specific formats
+  - [ ] Alpaca message format handling
+  - [ ] Polygon.io message format handling
+  - [ ] Provider-specific timestamp formats
+  - [ ] Provider-specific price/volume formats
+- [ ] Update provider factory to register real providers
+- [ ] Integration tests with real providers (sandbox/test mode)
+  - [ ] Test with Alpaca sandbox environment
+  - [ ] Test with Polygon.io test environment (if implemented)
+  - [ ] Verify data normalization accuracy
+  - [ ] Test reconnection scenarios
+- [ ] Provider fallback logic (optional, can defer to later phase)
+  - [ ] Automatic failover between providers
+  - [ ] Provider health monitoring
+  - [ ] Degraded mode handling
+
 #### 1.2 Bar Aggregator Service (`cmd/bars`)
 
-**1.2.1 Bar Aggregation Logic**
-- [ ] Implement bar builder (`internal/bars/aggregator.go`)
-  - [ ] Live bar state per symbol (in-memory map)
-  - [ ] Update logic on tick:
-    - [ ] Update high/low
-    - [ ] Update close
-    - [ ] Accumulate volume
-    - [ ] Update VWAP numerator/denominator
-  - [ ] Minute boundary detection
-  - [ ] Bar finalization logic
-- [ ] Thread-safe state management
-- [ ] Unit tests for aggregation logic
+**1.2.1 Bar Aggregation Logic** ✅
+- [x] Implement bar builder (`internal/bars/aggregator.go`)
+  - [x] Live bar state per symbol (in-memory map)
+  - [x] Update logic on tick:
+    - [x] Update high/low
+    - [x] Update close
+    - [x] Accumulate volume
+    - [x] Update VWAP numerator/denominator
+  - [x] Minute boundary detection
+  - [x] Bar finalization logic
+- [x] Thread-safe state management
+- [x] Unit tests for aggregation logic
 
-**1.2.2 Redis Stream Consumer**
-- [ ] Implement Redis Stream consumer (`internal/pubsub/redis_consumer.go`)
-  - [ ] Consumer group support
-  - [ ] Partition assignment
-  - [ ] Message acknowledgment
-  - [ ] Error handling
-  - [ ] Lag monitoring
-- [ ] Process ticks from stream
-- [ ] Update live bars
+**1.2.2 Redis Stream Consumer** ✅
+- [x] Implement Redis Stream consumer (`internal/pubsub/stream_consumer.go`)
+  - [x] Consumer group support
+  - [x] Partition assignment
+  - [x] Message acknowledgment
+  - [x] Error handling
+  - [x] Lag monitoring
+- [x] Process ticks from stream
+- [x] Update live bars
 
-**1.2.3 Live Bar Publishing**
-- [ ] Publish live bar snapshots to Redis
-  - [ ] Key: `livebar:{symbol}`
-  - [ ] JSON serialization
-  - [ ] TTL (e.g., 5 minutes)
-- [ ] Publish finalized bars to Redis Stream
-  - [ ] Stream: `bars.finalized`
-  - [ ] Include all bar data
+**1.2.3 Live Bar Publishing** ✅
+- [x] Publish live bar snapshots to Redis
+  - [x] Key: `livebar:{symbol}`
+  - [x] JSON serialization
+  - [x] TTL (e.g., 5 minutes)
+- [x] Publish finalized bars to Redis Stream
+  - [x] Stream: `bars.finalized`
+  - [x] Include all bar data
 
 **1.2.4 TimescaleDB Integration**
 - [ ] Implement TimescaleDB writer (`internal/storage/timescale.go`)

@@ -34,17 +34,48 @@ cp config/env.example .env
 # Edit .env with your configuration (especially MARKET_DATA_API_KEY and MARKET_DATA_API_SECRET)
 ```
 
-### 3. Start Services
+### 3. Deploy and Test Services
 
-You have two options:
-
-#### Option A: Docker Compose (Recommended)
+#### Quick Deployment (Recommended)
 
 ```bash
-# Start infrastructure only (Redis, TimescaleDB, Prometheus, Grafana)
+# Automated deployment (starts infrastructure, runs migrations, builds and starts services)
+make docker-deploy
+
+# Or use the deployment script directly
+./scripts/deploy.sh
+```
+
+This will:
+- Start infrastructure (Redis, TimescaleDB, Prometheus, Grafana)
+- Run database migrations
+- Build Docker images for Ingest and Bars services
+- Start both services
+- Wait for health checks
+
+#### Test Services
+
+```bash
+# Automated testing
+make docker-test
+
+# Or use the test script directly
+./scripts/test_services.sh
+```
+
+#### Manual Start (Alternative)
+
+```bash
+# Start infrastructure only
 make docker-up
 
-# Or start everything including Go services
+# Wait for infrastructure to be ready
+sleep 15
+
+# Run migrations
+make migrate-up
+
+# Start all services
 make docker-up-all
 
 # View logs
@@ -53,14 +84,7 @@ make docker-logs
 make docker-logs-service SERVICE=ingest
 ```
 
-This starts:
-- Redis (port 6379)
-- TimescaleDB (port 5432)
-- Prometheus (port 9090)
-- Grafana (port 3000)
-- All Go microservices (ports 8080-8091)
-
-#### Option B: Manual (For Development/Debugging)
+#### Manual Testing (For Development/Debugging)
 
 ```bash
 # Start infrastructure
@@ -72,19 +96,34 @@ make build
 # Run individual services (in separate terminals)
 make run-ingest
 make run-bars
-make run-indicator
-make run-scanner
-make run-ws-gateway
-make run-api
 ```
 
-### 4. Run Migrations
+### 4. Verify Services
 
 ```bash
-# Run database migrations
-make migrate-up
-# Or manually:
-psql -h localhost -U postgres -d stock_scanner -f scripts/migrations/001_create_bars_table.sql
+# Check Ingest Service
+curl http://localhost:8081/health | jq .
+
+# Check Bars Service
+curl http://localhost:8083/health | jq .
+
+# Check metrics
+curl http://localhost:8081/metrics | grep stream_publish
+curl http://localhost:8083/metrics | grep timescale_write
+```
+
+### 5. Verify Data Flow
+
+```bash
+# Check ticks stream (wait 10-15 seconds first)
+docker exec -it stock-scanner-redis redis-cli XLEN ticks
+
+# Check finalized bars (wait 1-2 minutes for minute boundary)
+docker exec -it stock-scanner-redis redis-cli XLEN bars.finalized
+
+# Check database
+docker exec -it stock-scanner-timescaledb psql -U postgres -d stock_scanner \
+  -c "SELECT COUNT(*) FROM bars_1m;"
 ```
 
 ## Development
@@ -112,7 +151,44 @@ go test -cover ./...
 
 # Run specific package tests
 go test ./internal/models
+
+# Run integration tests
+go test ./tests/... -v
 ```
+
+## Testing the Ingest Service
+
+The ingest service can be tested with a mock provider (no external API keys needed).
+
+### Quick Test
+
+```bash
+# 1. Set up environment for mock provider
+cp config/env.example .env
+# Edit .env: MARKET_DATA_PROVIDER=mock, MARKET_DATA_API_KEY=test-key
+
+# 2. Start Redis
+make docker-up
+
+# 3. Run automated test script
+./scripts/test_ingest.sh
+
+# Or manually:
+# 3. Build and run
+go build -o ingest ./cmd/ingest
+./ingest
+
+# 4. In another terminal, check health
+curl http://localhost:8081/health | jq .
+
+# 5. Check if ticks are being published (wait 10-15 seconds)
+redis-cli XLEN ticks
+redis-cli XREAD COUNT 10 STREAMS ticks 0
+```
+
+For detailed testing instructions, see:
+- [Quick Test Guide](docs/QUICK_TEST.md)
+- [Full Testing Guide](docs/testing_ingest_service.md)
 
 ### Code Quality
 
@@ -149,6 +225,8 @@ Key configuration areas:
 - [MVP Specification](mvp_spec.md)
 - [Implementation Plan](implementation_plan.md)
 - [Scanner Worker Design](scanner_worker_design.md)
+- [Testing and Deployment Guide](docs/TESTING_AND_DEPLOYMENT.md)
+- [Quick Start Guide](docs/QUICK_START.md)
 
 ## License
 

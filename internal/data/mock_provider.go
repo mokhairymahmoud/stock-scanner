@@ -135,7 +135,6 @@ func (m *MockProvider) generateTicks(ctx context.Context, symbols []string) {
 
 	// Initialize base prices for each symbol
 	basePrices := make(map[string]float64)
-	rand.Seed(time.Now().UnixNano())
 	for _, symbol := range symbols {
 		basePrices[symbol] = 100.0 + rand.Float64()*200.0 // Random price between 100-300
 	}
@@ -201,4 +200,3 @@ func (m *MockProvider) GetSubscribedSymbols() []string {
 	}
 	return symbols
 }
-

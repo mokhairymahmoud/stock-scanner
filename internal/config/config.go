@@ -85,6 +85,12 @@ type BarsConfig struct {
 	ConsumerGroup   string
 	BatchSize       int
 	WriteInterval   time.Duration
+	// Database write configuration
+	DBWriteBatchSize int
+	DBWriteInterval  time.Duration
+	DBWriteQueueSize int
+	DBMaxRetries     int
+	DBRetryDelay     time.Duration
 }
 
 // IndicatorConfig holds indicator engine configuration
@@ -178,6 +184,12 @@ func Load() (*Config, error) {
 			ConsumerGroup:   getEnv("BARS_CONSUMER_GROUP", "bars-aggregator"),
 			BatchSize:       getEnvAsInt("BARS_BATCH_SIZE", 1000),
 			WriteInterval:   getEnvAsDuration("BARS_WRITE_INTERVAL", 1*time.Second),
+			// Database write configuration
+			DBWriteBatchSize: getEnvAsInt("BARS_DB_WRITE_BATCH_SIZE", 1000),
+			DBWriteInterval:  getEnvAsDuration("BARS_DB_WRITE_INTERVAL", 1*time.Second),
+			DBWriteQueueSize: getEnvAsInt("BARS_DB_WRITE_QUEUE_SIZE", 10000),
+			DBMaxRetries:     getEnvAsInt("BARS_DB_MAX_RETRIES", 3),
+			DBRetryDelay:     getEnvAsDuration("BARS_DB_RETRY_DELAY", 100*time.Millisecond),
 		},
 		Indicator: IndicatorConfig{
 			Port:            getEnvAsInt("INDICATOR_PORT", 8084),

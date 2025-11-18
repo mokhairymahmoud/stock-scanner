@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/mohamedkhairy/stock-scanner/internal/models"
@@ -161,7 +162,16 @@ func (m *MockRedisClient) PublishBatchToStream(ctx context.Context, stream strin
 	if m.PublishErr != nil {
 		return m.PublishErr
 	}
-	// Mock implementation
+	// Store messages in StreamData for testing
+	for _, msg := range messages {
+		// Convert map to StreamMessage format
+		streamMsg := StreamMessage{
+			ID:     "", // Mock doesn't generate IDs
+			Stream: stream,
+			Values: msg,
+		}
+		m.StreamData = append(m.StreamData, streamMsg)
+	}
 	return nil
 }
 
@@ -185,7 +195,12 @@ func (m *MockRedisClient) Set(ctx context.Context, key string, value interface{}
 	if m.SetErr != nil {
 		return m.SetErr
 	}
-	m.Data[key] = value.(string)
+	// Marshal to JSON like the real implementation
+	jsonData, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	m.Data[key] = string(jsonData)
 	return nil
 }
 
@@ -200,8 +215,11 @@ func (m *MockRedisClient) GetJSON(ctx context.Context, key string, dest interfac
 	if m.GetErr != nil {
 		return m.GetErr
 	}
-	// Mock implementation - would need JSON unmarshaling
-	return nil
+	value, exists := m.Data[key]
+	if !exists {
+		return nil // Return nil if key doesn't exist (like real implementation)
+	}
+	return json.Unmarshal([]byte(value), dest)
 }
 
 func (m *MockRedisClient) Delete(ctx context.Context, key string) error {

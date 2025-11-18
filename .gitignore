@@ -38,6 +38,14 @@ bin/
 dist/
 build/
 
+# Compiled binaries
+ingest
+bars
+indicator
+scanner
+ws-gateway
+api
+
 # Logs
 *.log
 logs/

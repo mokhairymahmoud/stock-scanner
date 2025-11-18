@@ -20,10 +20,16 @@ This is a condensed checklist version of the implementation plan for quick progr
   - [x] Data normalization ✅
   - [x] Redis Streams publisher ✅
   - [x] Ingest service main ✅
-- [ ] Bar Aggregator Service
-  - [ ] Bar aggregation logic
-  - [ ] Redis Stream consumer
-  - [ ] Live bar publishing
+  - [ ] Real provider implementations
+    - [ ] Alpaca provider
+    - [ ] Polygon.io provider 
+    - [ ] Databento.com provider
+    - [ ] Provider-specific normalization
+    - [ ] Integration tests with real providers
+- [x] Bar Aggregator Service ✅
+  - [x] Bar aggregation logic ✅ (`internal/bars/aggregator.go`)
+  - [x] Redis Stream consumer ✅ (`internal/pubsub/stream_consumer.go`)
+  - [x] Live bar publishing ✅ (`internal/bars/publisher.go`)
   - [ ] TimescaleDB integration
 - [ ] End-to-end test: Ingest → Bars → Storage
 
@@ -118,6 +124,9 @@ This is a condensed checklist version of the implementation plan for quick progr
 
 1. **Phase 0** ✅ → Foundation for everything
 2. **Phase 1** → Data must flow before anything else
+   - ✅ Phase 1.1: Market Data Ingest Service
+   - ✅ Phase 1.2.1-1.2.3: Bar Aggregation, Consumer, Publishing
+   - ⏳ Phase 1.2.4-1.2.5: TimescaleDB Integration, Service Main
 3. **Phase 2** → Indicators needed for rules
 4. **Phase 3** → Core scanning functionality
 5. **Phase 4** → Alert delivery
