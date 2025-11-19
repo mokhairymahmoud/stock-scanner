@@ -92,7 +92,7 @@ func (ae *AlertEmitterImpl) EmitAlert(alert *models.Alert) error {
 	ctx, cancel := context.WithTimeout(context.Background(), ae.config.PublishTimeout)
 	defer cancel()
 
-	// Marshal alert to JSON
+	// Marshal alert to JSON for pub/sub
 	alertJSON, err := json.Marshal(alert)
 	if err != nil {
 		ae.incrementFailed()
@@ -120,8 +120,9 @@ func (ae *AlertEmitterImpl) EmitAlert(alert *models.Alert) error {
 	}
 
 	// Publish to Redis stream (optional, for persistence)
+	// Pass the alert object directly - PublishToStream will handle JSON marshaling
 	if ae.config.StreamName != "" {
-		err = ae.redis.PublishToStream(ctx, ae.config.StreamName, "alert", string(alertJSON))
+		err = ae.redis.PublishToStream(ctx, ae.config.StreamName, "alert", alert)
 		if err != nil {
 			logger.Error("Failed to publish alert to stream",
 				logger.ErrorField(err),
