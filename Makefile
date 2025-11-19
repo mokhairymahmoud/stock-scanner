@@ -67,6 +67,9 @@ docker-verify: ## Verify deployment
 	@echo "Verifying deployment..."
 	@./scripts/verify_deployment.sh
 
+e2e-test: ## Interactive E2E testing helper
+	@./scripts/e2e_test.sh
+
 validate-phase2: ## Validate Phase 2 (Indicator Engine) implementation
 	@echo "Validating Phase 2: Indicator Engine..."
 	@./scripts/validate_phase2.sh
