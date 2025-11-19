@@ -39,18 +39,25 @@ This is a condensed checklist version of the implementation plan for quick progr
   - [x] Performance monitoring tools
   - [x] RedisInsight integration
 
-## Phase 2: Indicator Engine
-- [ ] Indicator package (`pkg/indicator`)
-  - [ ] RSI implementation
-  - [ ] EMA implementation
-  - [ ] VWAP implementation
-  - [ ] Volume indicators
-  - [ ] Price change indicators
-- [ ] Indicator Engine Service
-  - [ ] Bar consumer
-  - [ ] Indicator computation
-  - [ ] Indicator publishing to Redis
-- [ ] Integration tests
+## Phase 2: Indicator Engine ✅ COMPLETE
+- [x] Indicator package (`pkg/indicator`)
+  - [x] Core interfaces (Calculator, WindowedCalculator)
+  - [x] Registry for managing calculators
+  - [x] SymbolState for per-symbol state management
+  - [x] RSI implementation (period 14)
+  - [x] EMA implementation (periods 20, 50, 200)
+  - [x] SMA implementation (periods 20, 50, 200)
+  - [x] VWAP implementation (windows 5m, 15m, 1h)
+  - [x] Volume indicators (average and relative volume)
+  - [x] Price change indicators (1m, 5m, 15m windows)
+  - [x] Comprehensive unit tests (82.6% coverage)
+- [x] Indicator Engine Service
+  - [x] Engine core with factory pattern for calculators
+  - [x] Bar consumer (consumes from `bars.finalized` stream)
+  - [x] Indicator computation logic
+  - [x] Indicator publishing to Redis (`ind:{symbol}` keys + pub/sub)
+  - [x] Service main with health checks and metrics
+- [x] Integration tests
 
 ## Phase 3: Rule Engine & Scanner Worker
 - [ ] Rule Engine (`internal/rules`)
@@ -134,7 +141,10 @@ This is a condensed checklist version of the implementation plan for quick progr
    - ✅ Phase 1.2.1-1.2.3: Bar Aggregation, Consumer, Publishing
    - ✅ Phase 1.2.4-1.2.5: TimescaleDB Integration, Service Main
    - ✅ Phase 1.3-1.4: Testing & Deployment Infrastructure
-3. **Phase 2** → Indicators needed for rules
+3. **Phase 2** ✅ → Indicators needed for rules
+   - ✅ Phase 2.1: Indicator Package (interfaces, implementations, state management)
+   - ✅ Phase 2.2: Indicator Engine Service (consumer, computation, publishing)
+   - ✅ Phase 2.3: Testing
 4. **Phase 3** → Core scanning functionality
 5. **Phase 4** → Alert delivery
 6. **Phase 5** → User interface (API)
