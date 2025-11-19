@@ -214,20 +214,20 @@ func (sl *ScanLoop) run() {
 	defer ticker.Stop()
 
 	// Run initial scan immediately
-	sl.scan()
+	sl.Scan()
 
 	for {
 		select {
 		case <-sl.ctx.Done():
 			return
 		case <-ticker.C:
-			sl.scan()
+			sl.Scan()
 		}
 	}
 }
 
-// scan performs a single scan cycle
-func (sl *ScanLoop) scan() {
+// Scan performs a single scan cycle (exported for testing)
+func (sl *ScanLoop) Scan() {
 	startTime := time.Now()
 
 	// Check if scan takes too long
