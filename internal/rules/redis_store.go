@@ -179,7 +179,7 @@ func (s *RedisRuleStore) AddRule(rule *models.Rule) error {
 	// Add rule ID to the set
 	err = s.redis.SetAdd(s.ctx, s.config.SetKey, rule.ID)
 	if err != nil {
-			// Try to clean up the rule key if set operation fails
+		// Try to clean up the rule key if set operation fails
 		s.redis.Delete(s.ctx, key)
 		return fmt.Errorf("failed to add rule ID to set: %w", err)
 	}
@@ -307,4 +307,3 @@ func (s *RedisRuleStore) setRuleEnabled(id string, enabled bool) error {
 
 	return nil
 }
-

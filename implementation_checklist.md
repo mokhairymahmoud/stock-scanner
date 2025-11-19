@@ -97,19 +97,23 @@ This is a condensed checklist version of the implementation plan for quick progr
   - [x] Chaos tests (6 failure scenarios)
   - [x] Benchmarks (varying rule counts, tick bursts)
 
-## Phase 4: Alert Service & WebSocket Gateway
-- [ ] Alert Service
-  - [ ] Alert consumer
-  - [ ] Deduplication
-  - [ ] User filtering
-  - [ ] Alert persistence
-  - [ ] Alert routing
-- [ ] WebSocket Gateway
-  - [ ] WebSocket server
-  - [ ] Authentication
-  - [ ] Message broadcasting
-  - [ ] Client protocol
-- [ ] Integration tests
+## Phase 4: Alert Service & WebSocket Gateway ✅ COMPLETE
+- [x] Alert Service
+  - [x] Alert consumer (consumes from `alerts` stream)
+  - [x] Deduplication (idempotency keys, Redis-based)
+  - [x] User filtering (MVP: all pass through, structure ready for future)
+  - [x] Alert persistence (TimescaleDB with async batch writes)
+  - [x] Alert routing (routes to `alerts.filtered` stream)
+- [x] WebSocket Gateway
+  - [x] WebSocket server (HTTP upgrade, connection management)
+  - [x] Authentication (JWT validation, MVP: allows default user)
+  - [x] Message broadcasting (consumes from `alerts.filtered` stream)
+  - [x] Client protocol (subscribe/unsubscribe/ping/pong)
+  - [x] Connection management (registry, health monitoring)
+- [x] Unit tests (23 tests, all passing)
+  - [x] Alert Service unit tests (11 tests)
+  - [x] WebSocket Gateway unit tests (12 tests)
+- [ ] Integration tests (deferred to Phase 7)
 
 ## Phase 5: REST API Service
 - [ ] API framework setup
@@ -157,6 +161,9 @@ This is a condensed checklist version of the implementation plan for quick progr
 
 1. **Phase 0** ✅ → Foundation for everything
 2. **Phase 1** ✅ → Data must flow before anything else
+3. **Phase 2** ✅ → Indicators needed for rules
+4. **Phase 3** ✅ → Core scanning functionality
+5. **Phase 4** ✅ → Alert delivery
    - ✅ Phase 1.1: Market Data Ingest Service
    - ✅ Phase 1.2.1-1.2.3: Bar Aggregation, Consumer, Publishing
    - ✅ Phase 1.2.4-1.2.5: TimescaleDB Integration, Service Main

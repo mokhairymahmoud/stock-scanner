@@ -128,6 +128,7 @@ func main() {
 	// Initialize scan loop
 	scanLoopConfig := scanner.DefaultScanLoopConfig()
 	scanLoopConfig.ScanInterval = cfg.Scanner.ScanInterval
+	scanLoopConfig.RuleReloadInterval = cfg.Scanner.RuleReloadInterval
 	scanLoop := scanner.NewScanLoop(
 		scanLoopConfig,
 		stateManager,

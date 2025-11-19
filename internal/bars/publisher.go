@@ -14,23 +14,23 @@ import (
 
 // PublisherConfig holds configuration for the bar publisher
 type PublisherConfig struct {
-	LiveBarKeyPrefix   string        // Prefix for live bar keys (default: "livebar:")
-	LiveBarTTL         time.Duration // TTL for live bars (default: 5 minutes)
-	FinalizedStream    string        // Stream name for finalized bars (default: "bars.finalized")
-	UpdateInterval     time.Duration // How often to update live bars (default: 1 second)
-	BatchSize          int           // Batch size for finalized bars (default: 100)
-	BatchTimeout       time.Duration // Timeout for batching finalized bars (default: 100ms)
+	LiveBarKeyPrefix string        // Prefix for live bar keys (default: "livebar:")
+	LiveBarTTL       time.Duration // TTL for live bars (default: 5 minutes)
+	FinalizedStream  string        // Stream name for finalized bars (default: "bars.finalized")
+	UpdateInterval   time.Duration // How often to update live bars (default: 1 second)
+	BatchSize        int           // Batch size for finalized bars (default: 100)
+	BatchTimeout     time.Duration // Timeout for batching finalized bars (default: 100ms)
 }
 
 // DefaultPublisherConfig returns default configuration
 func DefaultPublisherConfig() PublisherConfig {
 	return PublisherConfig{
 		LiveBarKeyPrefix: "livebar:",
-		LiveBarTTL:        5 * time.Minute,
-		FinalizedStream:   "bars.finalized",
-		UpdateInterval:    1 * time.Second,
-		BatchSize:         100,
-		BatchTimeout:      100 * time.Millisecond,
+		LiveBarTTL:       5 * time.Minute,
+		FinalizedStream:  "bars.finalized",
+		UpdateInterval:   1 * time.Second,
+		BatchSize:        100,
+		BatchTimeout:     100 * time.Millisecond,
 	}
 }
 
@@ -255,7 +255,7 @@ func (p *Publisher) flushFinalizedBars() error {
 			// Use a new context with timeout for the database write
 			writeCtx, writeCancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer writeCancel()
-			
+
 			if err := barStorage.WriteBars(writeCtx, bars); err != nil {
 				logger.Error("Failed to write bars to storage",
 					logger.ErrorField(err),
@@ -290,4 +290,3 @@ func (p *Publisher) IsRunning() bool {
 	defer p.mu.RUnlock()
 	return p.running
 }
-

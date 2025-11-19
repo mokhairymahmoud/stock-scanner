@@ -171,7 +171,7 @@ func (ic *IndicatorConsumer) consumeUpdates() {
 			// Try to unmarshal directly first, if that fails, try unmarshaling as a string first
 			var updateMsg map[string]interface{}
 			messageBytes := []byte(msg.Message)
-			
+
 			// First, try direct unmarshal
 			if err := json.Unmarshal(messageBytes, &updateMsg); err != nil {
 				// If that fails, try unmarshaling as a string first (double-encoded case)
@@ -304,4 +304,3 @@ func (ic *IndicatorConsumer) incrementFailed() {
 	defer ic.stats.mu.Unlock()
 	ic.stats.UpdatesFailed++
 }
-

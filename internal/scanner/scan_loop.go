@@ -30,17 +30,19 @@ type AlertEmitter interface {
 
 // ScanLoopConfig holds configuration for the scan loop
 type ScanLoopConfig struct {
-	ScanInterval    time.Duration // How often to run scan (default: 1 second)
-	MaxScanTime     time.Duration // Maximum time allowed for a scan cycle (default: 800ms)
-	MetricsPoolSize int           // Size of metrics map pool (default: 100)
+	ScanInterval       time.Duration // How often to run scan (default: 1 second)
+	MaxScanTime        time.Duration // Maximum time allowed for a scan cycle (default: 800ms)
+	MetricsPoolSize    int           // Size of metrics map pool (default: 100)
+	RuleReloadInterval time.Duration // How often to reload rules from store (default: 30 seconds)
 }
 
 // DefaultScanLoopConfig returns default configuration
 func DefaultScanLoopConfig() ScanLoopConfig {
 	return ScanLoopConfig{
-		ScanInterval:    1 * time.Second,
-		MaxScanTime:     800 * time.Millisecond,
-		MetricsPoolSize: 100,
+		ScanInterval:       1 * time.Second,
+		MaxScanTime:        800 * time.Millisecond,
+		MetricsPoolSize:    100,
+		RuleReloadInterval: 30 * time.Second,
 	}
 }
 
@@ -65,6 +67,10 @@ type ScanLoop struct {
 	// Compiled rules cache (updated when rules change)
 	compiledRules map[string]rules.CompiledRule
 	rulesMu       sync.RWMutex
+	
+	// Rule reload tracking
+	lastRuleReload time.Time
+	lastReloadMu   sync.RWMutex
 }
 
 // ScanLoopStats holds statistics about the scan loop
@@ -121,6 +127,7 @@ func NewScanLoop(
 		cancel:         cancel,
 		metricsPool:    metricsPool,
 		compiledRules:  make(map[string]rules.CompiledRule),
+		lastRuleReload: time.Now(),
 		stats: ScanLoopStats{
 			MinScanCycleTime: time.Hour, // Initialize to large value
 		},
@@ -210,8 +217,17 @@ func (sl *ScanLoop) ReloadRules() error {
 func (sl *ScanLoop) run() {
 	defer sl.wg.Done()
 
-	ticker := time.NewTicker(sl.config.ScanInterval)
-	defer ticker.Stop()
+	scanTicker := time.NewTicker(sl.config.ScanInterval)
+	defer scanTicker.Stop()
+
+	// Create rule reload ticker if interval is configured
+	var ruleReloadTicker *time.Ticker
+	var ruleReloadChan <-chan time.Time
+	if sl.config.RuleReloadInterval > 0 {
+		ruleReloadTicker = time.NewTicker(sl.config.RuleReloadInterval)
+		defer ruleReloadTicker.Stop()
+		ruleReloadChan = ruleReloadTicker.C
+	}
 
 	// Run initial scan immediately
 	sl.Scan()
@@ -220,8 +236,15 @@ func (sl *ScanLoop) run() {
 		select {
 		case <-sl.ctx.Done():
 			return
-		case <-ticker.C:
+		case <-scanTicker.C:
 			sl.Scan()
+		case <-ruleReloadChan:
+			// Periodically reload rules from store
+			if err := sl.reloadRules(); err != nil {
+				logger.Error("Failed to reload rules during periodic refresh",
+					logger.ErrorField(err),
+				)
+			}
 		}
 	}
 }
@@ -456,12 +479,26 @@ func (sl *ScanLoop) reloadRules() error {
 
 	// Update compiled rules cache (write lock)
 	sl.rulesMu.Lock()
+	oldCount := len(sl.compiledRules)
 	sl.compiledRules = compiled
 	sl.rulesMu.Unlock()
 
-	logger.Info("Reloaded and compiled rules",
-		logger.Int("rule_count", len(compiled)),
-	)
+	// Update last reload time
+	sl.lastReloadMu.Lock()
+	sl.lastRuleReload = time.Now()
+	sl.lastReloadMu.Unlock()
+
+	// Log if rule count changed
+	if oldCount != len(compiled) {
+		logger.Info("Reloaded and compiled rules",
+			logger.Int("old_rule_count", oldCount),
+			logger.Int("new_rule_count", len(compiled)),
+		)
+	} else {
+		logger.Debug("Reloaded and compiled rules (no change)",
+			logger.Int("rule_count", len(compiled)),
+		)
+	}
 
 	return nil
 }

@@ -1,4 +1,4 @@
-.PHONY: help build test clean run-ingest run-bars run-indicator run-scanner run-ws-gateway run-api docker-up docker-down migrate-up migrate-down
+.PHONY: help build test clean run-ingest run-bars run-indicator run-scanner run-alert run-ws-gateway run-api docker-up docker-down migrate-up migrate-down
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -12,6 +12,7 @@ build: ## Build all services
 	@go build -o bin/bars ./cmd/bars
 	@go build -o bin/indicator ./cmd/indicator
 	@go build -o bin/scanner ./cmd/scanner
+	@go build -o bin/alert ./cmd/alert
 	@go build -o bin/ws-gateway ./cmd/ws_gateway
 	@go build -o bin/api ./cmd/api
 
@@ -82,6 +83,12 @@ migrate-up: ## Run database migrations (uses Docker)
 		 echo "Waiting for database to be ready..." && \
 		 sleep 10 && \
 		 docker exec -i stock-scanner-timescaledb psql -U postgres -d stock_scanner < scripts/migrations/001_create_bars_table.sql)
+	@docker exec -i stock-scanner-timescaledb psql -U postgres -d stock_scanner < scripts/migrations/002_create_alert_history_table.sql || \
+		(echo "⚠️  TimescaleDB container not running. Starting infrastructure..." && \
+		 docker-compose -f config/docker-compose.yaml up -d timescaledb && \
+		 echo "Waiting for database to be ready..." && \
+		 sleep 10 && \
+		 docker exec -i stock-scanner-timescaledb psql -U postgres -d stock_scanner < scripts/migrations/002_create_alert_history_table.sql)
 
 fmt: ## Format code
 	@echo "Formatting code..."
@@ -102,6 +109,9 @@ run-indicator: ## Run indicator service (requires build first)
 
 run-scanner: ## Run scanner service (requires build first)
 	@./bin/scanner
+
+run-alert: ## Run alert service (requires build first)
+	@./bin/alert
 
 run-ws-gateway: ## Run WebSocket gateway service (requires build first)
 	@./bin/ws-gateway

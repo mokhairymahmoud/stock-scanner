@@ -30,6 +30,7 @@ type Config struct {
 	Bars      BarsConfig
 	Indicator IndicatorConfig
 	Scanner   ScannerConfig
+	Alert     AlertConfig
 	WSGateway WSGatewayConfig
 	API       APIConfig
 }
@@ -103,15 +104,16 @@ type IndicatorConfig struct {
 
 // ScannerConfig holds scanner worker configuration
 type ScannerConfig struct {
-	Port            int
-	HealthCheckPort int
-	WorkerID        string
-	WorkerCount     int
-	ScanInterval    time.Duration
-	SymbolUniverse  []string
-	CooldownDefault time.Duration
-	BufferSize      int
-	RuleStoreType   string // "memory" or "redis" (default: "memory")
+	Port              int
+	HealthCheckPort   int
+	WorkerID          string
+	WorkerCount       int
+	ScanInterval      time.Duration
+	SymbolUniverse    []string
+	CooldownDefault   time.Duration
+	BufferSize        int
+	RuleStoreType     string        // "memory" or "redis" (default: "memory")
+	RuleReloadInterval time.Duration // How often to reload rules from store (default: 30s)
 }
 
 // WSGatewayConfig holds WebSocket gateway configuration
@@ -123,6 +125,26 @@ type WSGatewayConfig struct {
 	PingInterval    time.Duration
 	MaxConnections  int
 	JWTSecret       string
+	AlertStream     string
+	ConsumerGroup   string
+}
+
+// AlertConfig holds alert service configuration
+type AlertConfig struct {
+	Port              int
+	HealthCheckPort   int
+	ConsumerGroup     string
+	StreamName        string
+	BatchSize         int
+	ProcessTimeout    time.Duration
+	DedupeTTL         time.Duration
+	CooldownTTL       time.Duration
+	FilteredStreamName string
+	DBWriteBatchSize  int
+	DBWriteInterval   time.Duration
+	DBWriteQueueSize  int
+	DBMaxRetries      int
+	DBRetryDelay      time.Duration
 }
 
 // APIConfig holds REST API configuration
@@ -199,15 +221,32 @@ func Load() (*Config, error) {
 			UpdateInterval:  getEnvAsDuration("INDICATOR_UPDATE_INTERVAL", 1*time.Second),
 		},
 		Scanner: ScannerConfig{
-			Port:            getEnvAsInt("SCANNER_PORT", 8086),
-			HealthCheckPort: getEnvAsInt("SCANNER_HEALTH_PORT", 8087),
-			WorkerID:        getEnv("SCANNER_WORKER_ID", "worker-1"),
-			WorkerCount:     getEnvAsInt("SCANNER_WORKER_COUNT", 1),
-			ScanInterval:    getEnvAsDuration("SCANNER_SCAN_INTERVAL", 1*time.Second),
-			SymbolUniverse:  getEnvAsStringSlice("SCANNER_SYMBOL_UNIVERSE", []string{}),
-			CooldownDefault: getEnvAsDuration("SCANNER_COOLDOWN_DEFAULT", 5*time.Minute),
-			BufferSize:      getEnvAsInt("SCANNER_BUFFER_SIZE", 1000),
-			RuleStoreType:   getEnv("SCANNER_RULE_STORE_TYPE", "memory"), // "memory" or "redis"
+			Port:              getEnvAsInt("SCANNER_PORT", 8086),
+			HealthCheckPort:   getEnvAsInt("SCANNER_HEALTH_PORT", 8087),
+			WorkerID:          getEnv("SCANNER_WORKER_ID", "worker-1"),
+			WorkerCount:       getEnvAsInt("SCANNER_WORKER_COUNT", 1),
+			ScanInterval:      getEnvAsDuration("SCANNER_SCAN_INTERVAL", 1*time.Second),
+			SymbolUniverse:    getEnvAsStringSlice("SCANNER_SYMBOL_UNIVERSE", []string{}),
+			CooldownDefault:   getEnvAsDuration("SCANNER_COOLDOWN_DEFAULT", 5*time.Minute),
+			BufferSize:        getEnvAsInt("SCANNER_BUFFER_SIZE", 1000),
+			RuleStoreType:     getEnv("SCANNER_RULE_STORE_TYPE", "memory"), // "memory" or "redis"
+			RuleReloadInterval: getEnvAsDuration("SCANNER_RULE_RELOAD_INTERVAL", 30*time.Second),
+		},
+		Alert: AlertConfig{
+			Port:              getEnvAsInt("ALERT_PORT", 8092),
+			HealthCheckPort:   getEnvAsInt("ALERT_HEALTH_PORT", 8093),
+			ConsumerGroup:     getEnv("ALERT_CONSUMER_GROUP", "alert-service"),
+			StreamName:        getEnv("ALERT_STREAM_NAME", "alerts"),
+			BatchSize:         getEnvAsInt("ALERT_BATCH_SIZE", 100),
+			ProcessTimeout:     getEnvAsDuration("ALERT_PROCESS_TIMEOUT", 5*time.Second),
+			DedupeTTL:          getEnvAsDuration("ALERT_DEDUPE_TTL", 1*time.Hour),
+			CooldownTTL:        getEnvAsDuration("ALERT_COOLDOWN_TTL", 5*time.Minute),
+			FilteredStreamName: getEnv("ALERT_FILTERED_STREAM_NAME", "alerts.filtered"),
+			DBWriteBatchSize:   getEnvAsInt("ALERT_DB_WRITE_BATCH_SIZE", 100),
+			DBWriteInterval:    getEnvAsDuration("ALERT_DB_WRITE_INTERVAL", 5*time.Second),
+			DBWriteQueueSize:   getEnvAsInt("ALERT_DB_WRITE_QUEUE_SIZE", 1000),
+			DBMaxRetries:       getEnvAsInt("ALERT_DB_MAX_RETRIES", 3),
+			DBRetryDelay:       getEnvAsDuration("ALERT_DB_RETRY_DELAY", 1*time.Second),
 		},
 		WSGateway: WSGatewayConfig{
 			Port:            getEnvAsInt("WS_GATEWAY_PORT", 8088),
@@ -217,6 +256,8 @@ func Load() (*Config, error) {
 			PingInterval:    getEnvAsDuration("WS_GATEWAY_PING_INTERVAL", 30*time.Second),
 			MaxConnections:  getEnvAsInt("WS_GATEWAY_MAX_CONNECTIONS", 1000),
 			JWTSecret:       getEnv("WS_GATEWAY_JWT_SECRET", ""),
+			AlertStream:     getEnv("WS_GATEWAY_ALERT_STREAM", "alerts.filtered"),
+			ConsumerGroup:   getEnv("WS_GATEWAY_CONSUMER_GROUP", "ws-gateway"),
 		},
 		API: APIConfig{
 			Port:            getEnvAsInt("API_PORT", 8090),
