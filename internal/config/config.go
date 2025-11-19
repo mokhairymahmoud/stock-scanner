@@ -111,6 +111,7 @@ type ScannerConfig struct {
 	SymbolUniverse  []string
 	CooldownDefault time.Duration
 	BufferSize      int
+	RuleStoreType   string // "memory" or "redis" (default: "memory")
 }
 
 // WSGatewayConfig holds WebSocket gateway configuration
@@ -206,6 +207,7 @@ func Load() (*Config, error) {
 			SymbolUniverse:  getEnvAsStringSlice("SCANNER_SYMBOL_UNIVERSE", []string{}),
 			CooldownDefault: getEnvAsDuration("SCANNER_COOLDOWN_DEFAULT", 5*time.Minute),
 			BufferSize:      getEnvAsInt("SCANNER_BUFFER_SIZE", 1000),
+			RuleStoreType:   getEnv("SCANNER_RULE_STORE_TYPE", "memory"), // "memory" or "redis"
 		},
 		WSGateway: WSGatewayConfig{
 			Port:            getEnvAsInt("WS_GATEWAY_PORT", 8088),

@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"time"
 
 	"github.com/mohamedkhairy/stock-scanner/internal/models"
@@ -135,6 +136,7 @@ func (m *MockAlertStorage) Close() error {
 // MockRedisClient is a mock implementation of RedisClient for testing
 type MockRedisClient struct {
 	Data          map[string]string
+	Sets          map[string]map[string]bool // Map of set keys to their members
 	StreamData    []StreamMessage
 	PubSubData    []PubSubMessage
 	PublishErr    error
@@ -142,11 +144,13 @@ type MockRedisClient struct {
 	SetErr        error
 	SubscribeErr  error
 	ConsumeErr    error
+	mu            sync.RWMutex
 }
 
 func NewMockRedisClient() *MockRedisClient {
 	return &MockRedisClient{
 		Data: make(map[string]string),
+		Sets: make(map[string]map[string]bool),
 	}
 }
 
@@ -233,14 +237,41 @@ func (m *MockRedisClient) Exists(ctx context.Context, key string) (bool, error) 
 }
 
 func (m *MockRedisClient) SetAdd(ctx context.Context, key string, members ...string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.Sets[key] == nil {
+		m.Sets[key] = make(map[string]bool)
+	}
+	for _, member := range members {
+		m.Sets[key][member] = true
+	}
 	return nil
 }
 
 func (m *MockRedisClient) SetMembers(ctx context.Context, key string) ([]string, error) {
-	return nil, nil
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	set, exists := m.Sets[key]
+	if !exists {
+		return []string{}, nil
+	}
+	members := make([]string, 0, len(set))
+	for member := range set {
+		members = append(members, member)
+	}
+	return members, nil
 }
 
 func (m *MockRedisClient) SetRemove(ctx context.Context, key string, members ...string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	set, exists := m.Sets[key]
+	if !exists {
+		return nil
+	}
+	for _, member := range members {
+		delete(set, member)
+	}
 	return nil
 }
 

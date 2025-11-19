@@ -90,8 +90,24 @@ func main() {
 	// Initialize state manager
 	stateManager := scanner.NewStateManager(200) // Keep last 200 finalized bars
 
-	// Initialize rule store
-	ruleStore := rules.NewInMemoryRuleStore()
+	// Initialize rule store (memory or Redis based on config)
+	var ruleStore rules.RuleStore
+	if cfg.Scanner.RuleStoreType == "redis" {
+		redisStoreConfig := rules.DefaultRedisRuleStoreConfig()
+		redisStore, err := rules.NewRedisRuleStore(redisClient, redisStoreConfig)
+		if err != nil {
+			logger.Fatal("Failed to create Redis rule store",
+				logger.ErrorField(err),
+			)
+		}
+		ruleStore = redisStore
+		logger.Info("Using Redis rule store",
+			logger.String("key_prefix", redisStoreConfig.KeyPrefix),
+		)
+	} else {
+		ruleStore = rules.NewInMemoryRuleStore()
+		logger.Info("Using in-memory rule store")
+	}
 
 	// Initialize rule compiler
 	compiler := rules.NewCompiler(nil)

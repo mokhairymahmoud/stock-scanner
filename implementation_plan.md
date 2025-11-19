@@ -444,8 +444,13 @@ This document provides a comprehensive, phase-by-phase implementation plan for t
 - Support for all comparison operators (>, <, >=, <=, ==, !=)
 - AND logic for multiple conditions (all must match)
 - Extensible metric resolver for computed metrics
-- Thread-safe in-memory storage with full CRUD operations
+- Dual storage implementations:
+  - In-memory store: Fast, simple, for testing/development
+  - Redis store: Shared state across workers, persistent, for production
+- Thread-safe operations (in-memory: sync.RWMutex, Redis: atomic operations)
+- Full CRUD operations (AddRule, GetRule, UpdateRule, DeleteRule)
 - Deep copy of rules to prevent external modifications
+- Configurable via `SCANNER_RULE_STORE_TYPE` environment variable
 
 **Verification:**
 - All code compiles successfully
@@ -601,12 +606,15 @@ This document provides a comprehensive, phase-by-phase implementation plan for t
 
 **3.1.5 Rule Storage** ✅
 - [x] Rule storage interface (`RuleStore`)
-- [x] In-memory rule store (`InMemoryRuleStore`)
-- [x] Thread-safe operations (sync.RWMutex)
+- [x] In-memory rule store (`InMemoryRuleStore`) - for testing/development
+- [x] Redis rule store (`RedisRuleStore`) - for production/shared state
+- [x] Thread-safe operations (sync.RWMutex for in-memory, Redis atomic ops)
 - [x] Full CRUD operations (AddRule, GetRule, UpdateRule, DeleteRule)
 - [x] Enable/Disable operations
 - [x] GetEnabledRules helper
-- [x] Unit tests (including concurrency tests)
+- [x] Redis set-based rule ID tracking for efficient listing
+- [x] Configurable rule store type (memory/redis) via `SCANNER_RULE_STORE_TYPE`
+- [x] Unit tests for both implementations (including concurrency tests)
 
 #### 3.2 Scanner Worker Core (`internal/scanner`) ✅ COMPLETE
 
