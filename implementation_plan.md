@@ -885,6 +885,25 @@ This document provides a comprehensive, phase-by-phase implementation plan for t
 - [ ] `POST /api/v1/rules/:id/validate` - Validate rule
 - [ ] Rule ownership/authorization
 
+**5.1.4 Rule Persistence Layer (TimescaleDB)**
+- [ ] Create `rules` table in TimescaleDB with schema:
+  - `id` (UUID, primary key)
+  - `name` (string)
+  - `description` (text, nullable)
+  - `conditions` (JSONB)
+  - `cooldown` (integer, seconds)
+  - `enabled` (boolean)
+  - `created_at` (timestamp)
+  - `updated_at` (timestamp)
+  - `version` (integer, for versioning)
+- [ ] Implement `DatabaseRuleStore` (persistent storage)
+- [ ] Rule Management Service: Sync rules from TimescaleDB to Redis cache
+- [ ] Redis pub/sub notifications for rule updates (`rules.updated` channel)
+- [ ] Scanner workers subscribe to rule updates and reload rules automatically
+- [ ] Rule versioning and rollback support
+- [ ] Migration path from Redis-only to Database+Cache pattern
+- [ ] Background job to sync rules from DB to Redis on startup
+
 **5.1.4 Alert History Endpoints**
 - [ ] `GET /api/v1/alerts` - List alerts (paginated)
 - [ ] `GET /api/v1/alerts/:id` - Get alert details
