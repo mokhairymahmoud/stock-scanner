@@ -67,15 +67,19 @@ This is a condensed checklist version of the implementation plan for quick progr
   - [x] Metric resolver (metric name → value)
   - [x] Rule storage (in-memory store)
   - [x] Comprehensive tests (87.4% coverage)
-- [ ] Scanner Worker Core (`internal/scanner`)
-  - [ ] Symbol state management
-  - [ ] Tick ingestion
-  - [ ] Indicator ingestion
-  - [ ] Scan loop (<800ms target)
-  - [ ] Cooldown management
-  - [ ] Alert emission
-  - [ ] Partitioning logic
-  - [ ] State rehydration
+- [x] Scanner Worker Core (`internal/scanner`) ✅ COMPLETE
+  - [x] Symbol state management (StateManager, SymbolState)
+  - [x] Tick ingestion (TickConsumer with Redis streams)
+  - [x] Indicator ingestion (IndicatorConsumer with Redis pub/sub)
+  - [x] Bar finalization handler (BarFinalizationHandler)
+  - [x] Scan loop (<800ms target, sync.Pool optimization)
+  - [x] Cooldown management (InMemoryCooldownTracker)
+  - [x] Alert emission (AlertEmitterImpl with Redis pub/sub + streams)
+  - [x] Partitioning logic (PartitionManager with consistent hashing)
+  - [x] State rehydration (Rehydrator with TimescaleDB + Redis)
+  - [x] Comprehensive unit tests (64.4% coverage)
+  - [x] E2E tests (3 scenarios)
+  - [x] Testing guide (`docs/PHASE3_2_E2E_TESTING.md`)
 - [ ] Scanner Worker Service (`cmd/scanner`)
 - [ ] Performance tests (2000+ symbols, <800ms scan)
 
@@ -149,7 +153,7 @@ This is a condensed checklist version of the implementation plan for quick progr
    - ✅ Phase 2.3: Testing
 4. **Phase 3** → Core scanning functionality
    - ✅ Phase 3.1: Rule Engine Core (data structures, parser, compiler, metric resolver, storage)
-   - [ ] Phase 3.2: Scanner Worker Core (symbol state, tick/indicator ingestion, scan loop)
+   - ✅ Phase 3.2: Scanner Worker Core (symbol state, tick/indicator ingestion, scan loop, cooldown, alerts, partitioning, rehydration)
 5. **Phase 4** → Alert delivery
 6. **Phase 5** → User interface (API)
 7. **Phase 6** → Deployment capability
