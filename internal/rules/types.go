@@ -49,4 +49,3 @@ type RuleStore interface {
 	// DisableRule disables a rule
 	DisableRule(id string) error
 }
-

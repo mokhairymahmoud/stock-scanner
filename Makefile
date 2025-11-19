@@ -67,6 +67,10 @@ docker-verify: ## Verify deployment
 	@echo "Verifying deployment..."
 	@./scripts/verify_deployment.sh
 
+validate-phase2: ## Validate Phase 2 (Indicator Engine) implementation
+	@echo "Validating Phase 2: Indicator Engine..."
+	@./scripts/validate_phase2.sh
+
 migrate-up: ## Run database migrations (uses Docker)
 	@echo "Running migrations..."
 	@docker exec -i stock-scanner-timescaledb psql -U postgres -d stock_scanner < scripts/migrations/001_create_bars_table.sql || \
