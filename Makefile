@@ -89,6 +89,12 @@ migrate-up: ## Run database migrations (uses Docker)
 		 echo "Waiting for database to be ready..." && \
 		 sleep 10 && \
 		 docker exec -i stock-scanner-timescaledb psql -U postgres -d stock_scanner < scripts/migrations/002_create_alert_history_table.sql)
+	@docker exec -i stock-scanner-timescaledb psql -U postgres -d stock_scanner < scripts/migrations/003_create_rules_table.sql || \
+		(echo "⚠️  TimescaleDB container not running. Starting infrastructure..." && \
+		 docker-compose -f config/docker-compose.yaml up -d timescaledb && \
+		 echo "Waiting for database to be ready..." && \
+		 sleep 10 && \
+		 docker exec -i stock-scanner-timescaledb psql -U postgres -d stock_scanner < scripts/migrations/003_create_rules_table.sql)
 
 fmt: ## Format code
 	@echo "Formatting code..."
