@@ -60,11 +60,13 @@ This is a condensed checklist version of the implementation plan for quick progr
 - [x] Integration tests
 
 ## Phase 3: Rule Engine & Scanner Worker
-- [ ] Rule Engine (`internal/rules`)
-  - [ ] Rule data structures
-  - [ ] Rule parser
-  - [ ] Rule compiler
-  - [ ] Metric resolver
+- [x] Rule Engine (`internal/rules`) ✅ COMPLETE
+  - [x] Rule data structures (types, validation)
+  - [x] Rule parser (JSON → Rule)
+  - [x] Rule compiler (Rule → CompiledRule)
+  - [x] Metric resolver (metric name → value)
+  - [x] Rule storage (in-memory store)
+  - [x] Comprehensive tests (87.4% coverage)
 - [ ] Scanner Worker Core (`internal/scanner`)
   - [ ] Symbol state management
   - [ ] Tick ingestion
@@ -146,6 +148,8 @@ This is a condensed checklist version of the implementation plan for quick progr
    - ✅ Phase 2.2: Indicator Engine Service (consumer, computation, publishing)
    - ✅ Phase 2.3: Testing
 4. **Phase 3** → Core scanning functionality
+   - ✅ Phase 3.1: Rule Engine Core (data structures, parser, compiler, metric resolver, storage)
+   - [ ] Phase 3.2: Scanner Worker Core (symbol state, tick/indicator ingestion, scan loop)
 5. **Phase 4** → Alert delivery
 6. **Phase 5** → User interface (API)
 7. **Phase 6** → Deployment capability
