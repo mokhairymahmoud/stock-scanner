@@ -217,6 +217,37 @@ services:
       - stock-scanner-network
     restart: unless-stopped
 
+  alert:
+    build:
+      context: ${PWD}
+      dockerfile: Dockerfile
+    container_name: stock-scanner-alert
+    command: ["./alert"]
+    ports:
+      - "8092:8092"
+      - "8093:8093"
+    env_file:
+      - ${PWD}/.env
+    environment:
+      - REDIS_HOST=redis
+      - DB_HOST=timescaledb
+    depends_on:
+      redis:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+      scanner:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "sh", "-c", "nc -z localhost 8093 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    networks:
+      - stock-scanner-network
+    restart: unless-stopped
+
   ws-gateway:
     build:
       context: ${PWD}
@@ -233,7 +264,7 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-      scanner:
+      alert:
         condition: service_started
     healthcheck:
       test: ["CMD", "sh", "-c", "nc -z localhost 8089 || exit 1"]
