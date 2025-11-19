@@ -187,7 +187,7 @@ func TestScanLoop_Scan_NoSymbols(t *testing.T) {
 	sl.ReloadRules()
 
 	// Scan with no symbols (should not panic)
-	sl.scan()
+	sl.Scan()
 
 	stats := sl.GetStats()
 	if stats.SymbolsScanned != 0 {
@@ -216,7 +216,7 @@ func TestScanLoop_Scan_NoRules(t *testing.T) {
 	sm.UpdateLiveBar("AAPL", tick)
 
 	// Scan with no rules (should not panic)
-	sl.scan()
+	sl.Scan()
 
 	stats := sl.GetStats()
 	if stats.RulesEvaluated != 0 {
@@ -263,7 +263,7 @@ func TestScanLoop_Scan_RuleMatches(t *testing.T) {
 	sm.UpdateLiveBar("AAPL", tick)
 
 	// Scan
-	sl.scan()
+	sl.Scan()
 
 	// Verify alert was emitted
 	alerts := alertEmitter.GetAlerts()
@@ -328,7 +328,7 @@ func TestScanLoop_Scan_RuleDoesNotMatch(t *testing.T) {
 	sm.UpdateLiveBar("AAPL", tick)
 
 	// Scan
-	sl.scan()
+	sl.Scan()
 
 	// Verify no alert was emitted
 	alerts := alertEmitter.GetAlerts()
@@ -384,7 +384,7 @@ func TestScanLoop_Scan_CooldownPreventsAlert(t *testing.T) {
 	cooldownTracker.RecordCooldown("rule-1", "AAPL", 300)
 
 	// Scan
-	sl.scan()
+	sl.Scan()
 
 	// Verify no alert was emitted (cooldown prevents it)
 	alerts := alertEmitter.GetAlerts()
@@ -434,7 +434,7 @@ func TestScanLoop_Scan_MultipleSymbols(t *testing.T) {
 	}
 
 	// Scan
-	sl.scan()
+	sl.Scan()
 
 	// Verify alerts for all symbols
 	alerts := alertEmitter.GetAlerts()
@@ -498,7 +498,7 @@ func TestScanLoop_Scan_MultipleRules(t *testing.T) {
 	sm.UpdateLiveBar("AAPL", tick)
 
 	// Scan
-	sl.scan()
+	sl.Scan()
 
 	// Verify only one alert (rule-1 matches)
 	alerts := alertEmitter.GetAlerts()
@@ -559,7 +559,7 @@ func TestScanLoop_Scan_DisabledRule(t *testing.T) {
 	sm.UpdateLiveBar("AAPL", tick)
 
 	// Scan
-	sl.scan()
+	sl.Scan()
 
 	// Verify no alert (rule is disabled)
 	alerts := alertEmitter.GetAlerts()
@@ -619,7 +619,7 @@ func TestScanLoop_Scan_Performance(t *testing.T) {
 
 	// Scan and measure time
 	start := time.Now()
-	sl.scan()
+	sl.Scan()
 	scanTime := time.Since(start)
 
 	// Verify scan completed quickly (should be well under 800ms for 100 symbols)
@@ -772,7 +772,7 @@ func TestScanLoop_Scan_NilCooldownTracker(t *testing.T) {
 	sm.UpdateLiveBar("AAPL", tick)
 
 	// Scan (should work without cooldown tracker)
-	sl.scan()
+	sl.Scan()
 
 	// Verify alert was emitted (no cooldown check)
 	alerts := alertEmitter.GetAlerts()
@@ -818,7 +818,7 @@ func TestScanLoop_Scan_NilAlertEmitter(t *testing.T) {
 	sm.UpdateLiveBar("AAPL", tick)
 
 	// Scan (should not panic without alert emitter)
-	sl.scan()
+	sl.Scan()
 
 	// Verify stats show rule matched but no alert emitted
 	stats := sl.GetStats()
@@ -873,7 +873,7 @@ func TestScanLoop_Scan_MetricsPoolReuse(t *testing.T) {
 
 	// Scan multiple times to test pool reuse
 	for i := 0; i < 5; i++ {
-		sl.scan()
+		sl.Scan()
 	}
 
 	// Verify no panics and stats are correct
@@ -939,7 +939,7 @@ func TestScanLoop_Scan_ComplexRule(t *testing.T) {
 	sm.UpdateLiveBar("AAPL", tick)
 
 	// Scan
-	sl.scan()
+	sl.Scan()
 
 	// Verify alert was emitted (both conditions match)
 	alerts := alertEmitter.GetAlerts()
@@ -1006,7 +1006,7 @@ func TestScanLoop_Scan_ComplexRulePartialMatch(t *testing.T) {
 	sm.UpdateLiveBar("AAPL", tick)
 
 	// Scan
-	sl.scan()
+	sl.Scan()
 
 	// Verify no alert (second condition doesn't match)
 	alerts := alertEmitter.GetAlerts()
@@ -1054,7 +1054,7 @@ func TestScanLoop_Scan_StatsTracking(t *testing.T) {
 
 	// Run multiple scans
 	for i := 0; i < 3; i++ {
-		sl.scan()
+		sl.Scan()
 	}
 
 	// Verify stats
