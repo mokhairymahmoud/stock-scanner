@@ -885,7 +885,13 @@ This document provides a comprehensive, phase-by-phase implementation plan for t
 - [ ] `POST /api/v1/rules/:id/validate` - Validate rule
 - [ ] Rule ownership/authorization
 
-**5.1.4 Rule Persistence Layer (TimescaleDB)**
+**5.1.4 Alert History Endpoints**
+- [ ] `GET /api/v1/alerts` - List alerts (paginated)
+- [ ] `GET /api/v1/alerts/:id` - Get alert details
+- [ ] Filtering: by symbol, rule, date range
+- [ ] Sorting options
+
+**5.1.5 Rule Persistence Layer (TimescaleDB)**
 - [ ] Create `rules` table in TimescaleDB with schema:
   - `id` (UUID, primary key)
   - `name` (string)
@@ -904,23 +910,17 @@ This document provides a comprehensive, phase-by-phase implementation plan for t
 - [ ] Migration path from Redis-only to Database+Cache pattern
 - [ ] Background job to sync rules from DB to Redis on startup
 
-**5.1.4 Alert History Endpoints**
-- [ ] `GET /api/v1/alerts` - List alerts (paginated)
-- [ ] `GET /api/v1/alerts/:id` - Get alert details
-- [ ] Filtering: by symbol, rule, date range
-- [ ] Sorting options
-
-**5.1.5 Symbol Management**
+**5.1.6 Symbol Management**
 - [ ] `GET /api/v1/symbols` - List available symbols
 - [ ] `GET /api/v1/symbols/:symbol` - Get symbol info
 - [ ] Symbol search/filter
 
-**5.1.6 User Management (Basic)**
+**5.1.7 User Management (Basic)**
 - [ ] `GET /api/v1/user/profile` - Get user profile
 - [ ] `PUT /api/v1/user/profile` - Update profile
 - [ ] User preferences storage
 
-**5.1.7 Health & Metrics**
+**5.1.8 Health & Metrics**
 - [ ] `GET /health` - Health check
 - [ ] `GET /metrics` - Prometheus metrics
 - [ ] `GET /ready` - Readiness probe
