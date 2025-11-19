@@ -80,7 +80,16 @@ This is a condensed checklist version of the implementation plan for quick progr
   - [x] Comprehensive unit tests (64.4% coverage)
   - [x] E2E tests (3 scenarios)
   - [x] Testing guide (`docs/PHASE3_2_E2E_TESTING.md`)
-- [ ] Scanner Worker Service (`cmd/scanner`)
+- [x] Scanner Worker Service (`cmd/scanner`) ✅ COMPLETE
+  - [x] Service main with all component integration
+  - [x] State rehydration on startup
+  - [x] All consumers started (ticks, indicators, bars)
+  - [x] Scan loop running
+  - [x] Health check endpoints
+  - [x] Metrics endpoints
+  - [x] Graceful shutdown
+  - [x] Configuration loading
+  - [x] Worker ID parsing and partition management
 - [ ] Performance tests (2000+ symbols, <800ms scan)
 
 ## Phase 4: Alert Service & WebSocket Gateway
@@ -154,6 +163,7 @@ This is a condensed checklist version of the implementation plan for quick progr
 4. **Phase 3** → Core scanning functionality
    - ✅ Phase 3.1: Rule Engine Core (data structures, parser, compiler, metric resolver, storage)
    - ✅ Phase 3.2: Scanner Worker Core (symbol state, tick/indicator ingestion, scan loop, cooldown, alerts, partitioning, rehydration)
+   - ✅ Phase 3.3: Scanner Worker Service (main service integration, health checks, metrics, graceful shutdown)
 5. **Phase 4** → Alert delivery
 6. **Phase 5** → User interface (API)
 7. **Phase 6** → Deployment capability
