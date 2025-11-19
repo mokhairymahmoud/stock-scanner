@@ -115,14 +115,18 @@ This is a condensed checklist version of the implementation plan for quick progr
   - [x] WebSocket Gateway unit tests (12 tests)
 - [ ] Integration tests (deferred to Phase 7)
 
-## Phase 5: REST API Service
-- [ ] API framework setup
-- [ ] Authentication (JWT)
-- [ ] Rule management endpoints
-- [ ] Alert history endpoints
-- [ ] Symbol management endpoints
-- [ ] User management endpoints
-- [ ] API documentation (OpenAPI)
+## Phase 5: REST API Service ✅ COMPLETE
+- [x] API framework setup (gorilla/mux with middleware)
+- [x] Authentication (JWT validation middleware, MVP: allows default user)
+- [x] Rule management endpoints (CRUD + validate)
+- [x] Alert history endpoints (list + get with filtering)
+- [x] Symbol management endpoints (list + get with search)
+- [x] User management endpoints (basic profile)
+- [x] Rule persistence layer (DatabaseRuleStore + Redis sync)
+- [x] Rule sync service (database → Redis cache)
+- [x] Database migration for rules table
+- [x] Unit tests (22 tests, all passing)
+- [ ] API documentation (OpenAPI) - deferred
 
 ## Phase 6: Infrastructure & Deployment
 - [ ] Dockerfiles for all services
@@ -177,8 +181,8 @@ This is a condensed checklist version of the implementation plan for quick progr
    - ✅ Phase 3.2: Scanner Worker Core (symbol state, tick/indicator ingestion, scan loop, cooldown, alerts, partitioning, rehydration)
    - ✅ Phase 3.3: Scanner Worker Service (main service integration, health checks, metrics, graceful shutdown)
    - ✅ Phase 3.4: Testing (unit, integration, performance, chaos tests)
-5. **Phase 4** → Alert delivery
-6. **Phase 5** → User interface (API)
+5. **Phase 4** ✅ → Alert delivery
+6. **Phase 5** ✅ → User interface (API)
 7. **Phase 6** → Deployment capability
 8. **Phase 7** → Quality assurance
 9. **Phase 8** → Production launch
