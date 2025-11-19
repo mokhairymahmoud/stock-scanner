@@ -19,6 +19,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o bin/ingest ./cmd/ingest
 RUN CGO_ENABLED=0 GOOS=linux go build -o bin/bars ./cmd/bars
 RUN CGO_ENABLED=0 GOOS=linux go build -o bin/indicator ./cmd/indicator
 RUN CGO_ENABLED=0 GOOS=linux go build -o bin/scanner ./cmd/scanner
+RUN CGO_ENABLED=0 GOOS=linux go build -o bin/alert ./cmd/alert
 RUN CGO_ENABLED=0 GOOS=linux go build -o bin/ws-gateway ./cmd/ws_gateway
 RUN CGO_ENABLED=0 GOOS=linux go build -o bin/api ./cmd/api
 
@@ -33,6 +34,7 @@ COPY --from=builder /build/bin/ingest /app/ingest
 COPY --from=builder /build/bin/bars /app/bars
 COPY --from=builder /build/bin/indicator /app/indicator
 COPY --from=builder /build/bin/scanner /app/scanner
+COPY --from=builder /build/bin/alert /app/alert
 COPY --from=builder /build/bin/ws-gateway /app/ws-gateway
 COPY --from=builder /build/bin/api /app/api
 
