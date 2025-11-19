@@ -250,8 +250,13 @@ func (p *Publisher) flushFinalizedBars() error {
 
 	if barStorage != nil {
 		// Write to database asynchronously (non-blocking)
+		// Use background context to avoid cancellation issues
 		go func(bars []*models.Bar1m) {
-			if err := barStorage.WriteBars(ctx, bars); err != nil {
+			// Use a new context with timeout for the database write
+			writeCtx, writeCancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer writeCancel()
+			
+			if err := barStorage.WriteBars(writeCtx, bars); err != nil {
 				logger.Error("Failed to write bars to storage",
 					logger.ErrorField(err),
 					logger.Int("count", len(bars)),

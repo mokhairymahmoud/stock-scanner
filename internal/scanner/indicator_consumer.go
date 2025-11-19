@@ -167,14 +167,33 @@ func (ic *IndicatorConsumer) consumeUpdates() {
 			ic.incrementReceived()
 
 			// Parse update message
+			// The message might be double-encoded (JSON string containing JSON)
+			// Try to unmarshal directly first, if that fails, try unmarshaling as a string first
 			var updateMsg map[string]interface{}
-			if err := json.Unmarshal([]byte(msg.Message), &updateMsg); err != nil {
-				logger.Error("Failed to unmarshal indicator update message",
-					logger.ErrorField(err),
-					logger.String("message", msg.Message),
-				)
-				ic.incrementFailed()
-				continue
+			messageBytes := []byte(msg.Message)
+			
+			// First, try direct unmarshal
+			if err := json.Unmarshal(messageBytes, &updateMsg); err != nil {
+				// If that fails, try unmarshaling as a string first (double-encoded case)
+				var jsonStr string
+				if err2 := json.Unmarshal(messageBytes, &jsonStr); err2 == nil {
+					// Successfully unmarshaled as string, now unmarshal the inner JSON
+					if err3 := json.Unmarshal([]byte(jsonStr), &updateMsg); err3 != nil {
+						logger.Error("Failed to unmarshal indicator update message (double-encoded)",
+							logger.ErrorField(err3),
+							logger.String("message", msg.Message),
+						)
+						ic.incrementFailed()
+						continue
+					}
+				} else {
+					logger.Error("Failed to unmarshal indicator update message",
+						logger.ErrorField(err),
+						logger.String("message", msg.Message),
+					)
+					ic.incrementFailed()
+					continue
+				}
 			}
 
 			symbol, ok := updateMsg["symbol"].(string)

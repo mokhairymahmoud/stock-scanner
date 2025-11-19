@@ -2,7 +2,6 @@ package indicator
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -125,26 +124,19 @@ func (p *Publisher) PublishIndicators(symbol string, indicators map[string]float
 	}
 
 	// Publish to pub/sub channel for real-time notifications
+	// Pass the map directly - Publish will handle JSON marshaling
 	updateMsg := map[string]interface{}{
 		"symbol":    symbol,
 		"timestamp": time.Now().UTC(),
 	}
-	updateJSON, err := json.Marshal(updateMsg)
+	err = p.redis.Publish(ctx, p.config.UpdateChannel, updateMsg)
 	if err != nil {
-		logger.Warn("Failed to marshal update message",
+		logger.Warn("Failed to publish indicator update",
 			logger.ErrorField(err),
 			logger.String("symbol", symbol),
+			logger.String("channel", p.config.UpdateChannel),
 		)
-	} else {
-		err = p.redis.Publish(ctx, p.config.UpdateChannel, string(updateJSON))
-		if err != nil {
-			logger.Warn("Failed to publish indicator update",
-				logger.ErrorField(err),
-				logger.String("symbol", symbol),
-				logger.String("channel", p.config.UpdateChannel),
-			)
-			// Don't fail the whole operation if pub/sub fails
-		}
+		// Don't fail the whole operation if pub/sub fails
 	}
 
 	logger.Debug("Published indicators",
