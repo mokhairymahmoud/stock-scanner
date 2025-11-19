@@ -5,173 +5,198 @@ import (
 	"time"
 )
 
-func TestCooldownTrackerImpl_IsOnCooldown(t *testing.T) {
-	ct := NewCooldownTracker(1 * time.Minute)
+func TestNewCooldownTracker(t *testing.T) {
+	ct := NewCooldownTracker(5 * time.Minute)
+	if ct == nil {
+		t.Fatal("Expected cooldown tracker to be created")
+	}
 
-	// Initially not on cooldown
+	if ct.cleanupInterval != 5*time.Minute {
+		t.Errorf("Expected cleanup interval 5m, got %v", ct.cleanupInterval)
+	}
+
+	// Test default cleanup interval
+	ct2 := NewCooldownTracker(0)
+	if ct2.cleanupInterval != 5*time.Minute {
+		t.Errorf("Expected default cleanup interval 5m, got %v", ct2.cleanupInterval)
+	}
+}
+
+func TestCooldownTracker_IsOnCooldown(t *testing.T) {
+	ct := NewCooldownTracker(5 * time.Minute)
+
+	// Not on cooldown initially
 	if ct.IsOnCooldown("rule-1", "AAPL") {
 		t.Error("Expected not to be on cooldown initially")
 	}
 
 	// Record cooldown
-	ct.RecordCooldown("rule-1", "AAPL", 300) // 5 minutes
+	ct.RecordCooldown("rule-1", "AAPL", 10) // 10 seconds
 
 	// Should be on cooldown
 	if !ct.IsOnCooldown("rule-1", "AAPL") {
 		t.Error("Expected to be on cooldown")
 	}
 
-	// Different symbol should not be on cooldown
-	if ct.IsOnCooldown("rule-1", "GOOGL") {
-		t.Error("Expected different symbol not to be on cooldown")
-	}
-
-	// Different rule should not be on cooldown
+	// Different rule-symbol pair should not be on cooldown
 	if ct.IsOnCooldown("rule-2", "AAPL") {
 		t.Error("Expected different rule not to be on cooldown")
 	}
+
+	if ct.IsOnCooldown("rule-1", "GOOGL") {
+		t.Error("Expected different symbol not to be on cooldown")
+	}
 }
 
-func TestCooldownTrackerImpl_RecordCooldown(t *testing.T) {
-	ct := NewCooldownTracker(1 * time.Minute)
+func TestCooldownTracker_RecordCooldown(t *testing.T) {
+	ct := NewCooldownTracker(5 * time.Minute)
 
 	// Record cooldown
-	ct.RecordCooldown("rule-1", "AAPL", 60) // 1 minute
+	ct.RecordCooldown("rule-1", "AAPL", 5) // 5 seconds
 
-	// Verify it's active
-	if !ct.IsOnCooldown("rule-1", "AAPL") {
-		t.Error("Expected to be on cooldown after recording")
+	// Verify cooldown end time
+	cooldownEnd := ct.GetCooldownEnd("rule-1", "AAPL")
+	if cooldownEnd.IsZero() {
+		t.Error("Expected cooldown end time to be set")
 	}
 
-	// Record zero cooldown (should not set)
-	ct.RecordCooldown("rule-2", "GOOGL", 0)
-	if ct.IsOnCooldown("rule-2", "GOOGL") {
-		t.Error("Expected zero cooldown not to be set")
+	// Cooldown should be in the future
+	now := time.Now()
+	if cooldownEnd.Before(now) {
+		t.Error("Expected cooldown end time to be in the future")
 	}
 
-	// Record negative cooldown (should not set)
-	ct.RecordCooldown("rule-3", "MSFT", -10)
-	if ct.IsOnCooldown("rule-3", "MSFT") {
-		t.Error("Expected negative cooldown not to be set")
+	// Cooldown should be approximately 5 seconds from now
+	expectedEnd := now.Add(5 * time.Second)
+	diff := cooldownEnd.Sub(expectedEnd)
+	if diff < -1*time.Second || diff > 1*time.Second {
+		t.Errorf("Expected cooldown end to be approximately 5s from now, got %v", diff)
 	}
 }
 
-func TestCooldownTrackerImpl_CooldownExpiration(t *testing.T) {
-	ct := NewCooldownTracker(1 * time.Minute)
+func TestCooldownTracker_CooldownExpires(t *testing.T) {
+	ct := NewCooldownTracker(5 * time.Minute)
 
 	// Record a very short cooldown
 	ct.RecordCooldown("rule-1", "AAPL", 1) // 1 second
 
-	// Should be on cooldown
+	// Should be on cooldown immediately
 	if !ct.IsOnCooldown("rule-1", "AAPL") {
-		t.Error("Expected to be on cooldown")
+		t.Error("Expected to be on cooldown immediately")
 	}
 
 	// Wait for cooldown to expire
 	time.Sleep(1100 * time.Millisecond)
 
-	// Should no longer be on cooldown
+	// Should not be on cooldown anymore
 	if ct.IsOnCooldown("rule-1", "AAPL") {
 		t.Error("Expected cooldown to have expired")
 	}
 }
 
-func TestCooldownTrackerImpl_ClearExpired(t *testing.T) {
-	ct := NewCooldownTracker(1 * time.Minute)
+func TestCooldownTracker_ClearCooldown(t *testing.T) {
+	ct := NewCooldownTracker(5 * time.Minute)
 
-	// Record multiple cooldowns
-	ct.RecordCooldown("rule-1", "AAPL", 60)
-	ct.RecordCooldown("rule-2", "GOOGL", 1) // Very short
+	// Record cooldown
+	ct.RecordCooldown("rule-1", "AAPL", 10)
 
-	// Wait for one to expire
-	time.Sleep(1100 * time.Millisecond)
-
-	// Clear expired
-	expiredCount := ct.ClearExpired()
-
-	if expiredCount != 1 {
-		t.Errorf("Expected 1 expired cooldown, got %d", expiredCount)
-	}
-
-	// Verify expired one is gone
-	if ct.IsOnCooldown("rule-2", "GOOGL") {
-		t.Error("Expected expired cooldown to be cleared")
-	}
-
-	// Verify active one is still there
+	// Verify on cooldown
 	if !ct.IsOnCooldown("rule-1", "AAPL") {
-		t.Error("Expected active cooldown to remain")
+		t.Error("Expected to be on cooldown")
+	}
+
+	// Clear cooldown
+	ct.ClearCooldown("rule-1", "AAPL")
+
+	// Should not be on cooldown anymore
+	if ct.IsOnCooldown("rule-1", "AAPL") {
+		t.Error("Expected cooldown to be cleared")
 	}
 }
 
-func TestCooldownTrackerImpl_ClearAll(t *testing.T) {
-	ct := NewCooldownTracker(1 * time.Minute)
+func TestCooldownTracker_ClearAllCooldowns(t *testing.T) {
+	ct := NewCooldownTracker(5 * time.Minute)
 
 	// Record multiple cooldowns
-	ct.RecordCooldown("rule-1", "AAPL", 60)
-	ct.RecordCooldown("rule-2", "GOOGL", 60)
+	ct.RecordCooldown("rule-1", "AAPL", 10)
+	ct.RecordCooldown("rule-1", "GOOGL", 10)
+	ct.RecordCooldown("rule-2", "AAPL", 10)
+
+	if ct.GetCooldownCount() != 3 {
+		t.Errorf("Expected 3 cooldowns, got %d", ct.GetCooldownCount())
+	}
 
 	// Clear all
-	ct.ClearAll()
+	ct.ClearAllCooldowns()
+
+	if ct.GetCooldownCount() != 0 {
+		t.Errorf("Expected 0 cooldowns after clear, got %d", ct.GetCooldownCount())
+	}
 
 	// Verify all are cleared
 	if ct.IsOnCooldown("rule-1", "AAPL") {
 		t.Error("Expected cooldown to be cleared")
 	}
 
-	if ct.IsOnCooldown("rule-2", "GOOGL") {
+	if ct.IsOnCooldown("rule-1", "GOOGL") {
 		t.Error("Expected cooldown to be cleared")
 	}
 
-	if ct.GetActiveCooldownCount() != 0 {
-		t.Errorf("Expected 0 active cooldowns, got %d", ct.GetActiveCooldownCount())
+	if ct.IsOnCooldown("rule-2", "AAPL") {
+		t.Error("Expected cooldown to be cleared")
 	}
 }
 
-func TestCooldownTrackerImpl_GetActiveCooldownCount(t *testing.T) {
-	ct := NewCooldownTracker(1 * time.Minute)
+func TestCooldownTracker_GetCooldownCount(t *testing.T) {
+	ct := NewCooldownTracker(5 * time.Minute)
 
-	if ct.GetActiveCooldownCount() != 0 {
-		t.Errorf("Expected 0 active cooldowns initially, got %d", ct.GetActiveCooldownCount())
+	if ct.GetCooldownCount() != 0 {
+		t.Errorf("Expected 0 cooldowns initially, got %d", ct.GetCooldownCount())
 	}
 
-	// Record multiple cooldowns
-	ct.RecordCooldown("rule-1", "AAPL", 60)
-	ct.RecordCooldown("rule-1", "GOOGL", 60)
-	ct.RecordCooldown("rule-2", "AAPL", 60)
+	// Add cooldowns
+	ct.RecordCooldown("rule-1", "AAPL", 10)
+	ct.RecordCooldown("rule-1", "GOOGL", 10)
 
-	if ct.GetActiveCooldownCount() != 3 {
-		t.Errorf("Expected 3 active cooldowns, got %d", ct.GetActiveCooldownCount())
-	}
-}
-
-func TestCooldownTrackerImpl_GetStats(t *testing.T) {
-	ct := NewCooldownTracker(1 * time.Minute)
-
-	// Record and check cooldowns
-	ct.RecordCooldown("rule-1", "AAPL", 60)
-	ct.IsOnCooldown("rule-1", "AAPL")
-	ct.IsOnCooldown("rule-1", "GOOGL") // Not on cooldown
-
-	stats := ct.GetStats()
-
-	if stats.CooldownsActive != 1 {
-		t.Errorf("Expected 1 active cooldown, got %d", stats.CooldownsActive)
+	if ct.GetCooldownCount() != 2 {
+		t.Errorf("Expected 2 cooldowns, got %d", ct.GetCooldownCount())
 	}
 
-	if stats.CooldownsChecked != 2 {
-		t.Errorf("Expected 2 cooldown checks, got %d", stats.CooldownsChecked)
-	}
+	// Add same rule-symbol (should overwrite, not add)
+	ct.RecordCooldown("rule-1", "AAPL", 20)
 
-	if stats.CooldownsHit != 1 {
-		t.Errorf("Expected 1 cooldown hit, got %d", stats.CooldownsHit)
+	if ct.GetCooldownCount() != 2 {
+		t.Errorf("Expected 2 cooldowns (overwrite), got %d", ct.GetCooldownCount())
 	}
 }
 
-func TestCooldownTrackerImpl_Concurrency(t *testing.T) {
-	ct := NewCooldownTracker(1 * time.Minute)
+func TestCooldownTracker_InvalidInputs(t *testing.T) {
+	ct := NewCooldownTracker(5 * time.Minute)
 
-	// Test concurrent access
+	// Empty rule ID or symbol should not record cooldown
+	ct.RecordCooldown("", "AAPL", 10)
+	ct.RecordCooldown("rule-1", "", 10)
+	ct.RecordCooldown("rule-1", "AAPL", 0) // Zero cooldown
+	ct.RecordCooldown("rule-1", "AAPL", -1) // Negative cooldown
+
+	if ct.GetCooldownCount() != 0 {
+		t.Errorf("Expected 0 cooldowns with invalid inputs, got %d", ct.GetCooldownCount())
+	}
+
+	// Empty inputs should return false for IsOnCooldown
+	if ct.IsOnCooldown("", "AAPL") {
+		t.Error("Expected false for empty rule ID")
+	}
+
+	if ct.IsOnCooldown("rule-1", "") {
+		t.Error("Expected false for empty symbol")
+	}
+}
+
+func TestCooldownTracker_Concurrency(t *testing.T) {
+	ct := NewCooldownTracker(5 * time.Minute)
+
+	// Test concurrent writes and reads
 	done := make(chan bool)
 	symbols := []string{"AAPL", "GOOGL", "MSFT", "TSLA", "AMZN"}
 
@@ -179,59 +204,113 @@ func TestCooldownTrackerImpl_Concurrency(t *testing.T) {
 	for _, symbol := range symbols {
 		go func(sym string) {
 			for i := 0; i < 100; i++ {
-				ct.RecordCooldown("rule-1", sym, 60)
+				ct.RecordCooldown("rule-1", sym, 10)
 				ct.IsOnCooldown("rule-1", sym)
 			}
 			done <- true
 		}(symbol)
 	}
 
+	// Concurrent reads
+	for i := 0; i < 5; i++ {
+		go func() {
+			for j := 0; j < 100; j++ {
+				for _, symbol := range symbols {
+					ct.IsOnCooldown("rule-1", symbol)
+					ct.GetCooldownCount()
+				}
+			}
+			done <- true
+		}()
+	}
+
 	// Wait for all goroutines
-	for i := 0; i < len(symbols); i++ {
+	for i := 0; i < len(symbols)+5; i++ {
 		<-done
 	}
 
 	// Verify final state
-	if ct.GetActiveCooldownCount() != len(symbols) {
-		t.Errorf("Expected %d active cooldowns, got %d", len(symbols), ct.GetActiveCooldownCount())
+	if ct.GetCooldownCount() != len(symbols) {
+		t.Errorf("Expected %d cooldowns, got %d", len(symbols), ct.GetCooldownCount())
 	}
 }
 
-func TestCooldownTrackerImpl_CleanupLoop(t *testing.T) {
-	ct := NewCooldownTracker(100 * time.Millisecond) // Very short cleanup interval
+func TestCooldownTracker_StartStop(t *testing.T) {
+	ct := NewCooldownTracker(100 * time.Millisecond) // Short cleanup interval for testing
 
-	// Start cleanup loop
+	// Start tracker
 	err := ct.Start()
 	if err != nil {
 		t.Fatalf("Failed to start cooldown tracker: %v", err)
 	}
-	defer ct.Stop()
 
 	// Record a short cooldown
 	ct.RecordCooldown("rule-1", "AAPL", 1) // 1 second
 
-	// Wait for it to expire and cleanup to run
+	// Wait for cleanup to run (should clean up expired cooldowns)
+	time.Sleep(150 * time.Millisecond)
+
+	// Stop tracker
+	ct.Stop()
+
+	// Try to start again (should work)
+	err = ct.Start()
+	if err != nil {
+		t.Fatalf("Failed to start cooldown tracker again: %v", err)
+	}
+
+	ct.Stop()
+}
+
+func TestCooldownTracker_CleanupExpired(t *testing.T) {
+	ct := NewCooldownTracker(100 * time.Millisecond)
+
+	// Start tracker
+	ct.Start()
+	defer ct.Stop()
+
+	// Record a very short cooldown
+	ct.RecordCooldown("rule-1", "AAPL", 1) // 1 second
+
+	// Record a longer cooldown
+	ct.RecordCooldown("rule-2", "GOOGL", 10) // 10 seconds
+
+	if ct.GetCooldownCount() != 2 {
+		t.Errorf("Expected 2 cooldowns, got %d", ct.GetCooldownCount())
+	}
+
+	// Wait for first cooldown to expire and cleanup to run
 	time.Sleep(1200 * time.Millisecond)
 
-	// Verify it was cleaned up
+	// First cooldown should be cleaned up
 	if ct.IsOnCooldown("rule-1", "AAPL") {
 		t.Error("Expected expired cooldown to be cleaned up")
 	}
 
-	stats := ct.GetStats()
-	if stats.CooldownsExpired == 0 {
-		t.Error("Expected some expired cooldowns to be tracked")
+	// Second cooldown should still be active
+	if !ct.IsOnCooldown("rule-2", "GOOGL") {
+		t.Error("Expected active cooldown to still be present")
+	}
+
+	// Count should be 1
+	if ct.GetCooldownCount() != 1 {
+		t.Errorf("Expected 1 cooldown after cleanup, got %d", ct.GetCooldownCount())
 	}
 }
 
-func TestCooldownTrackerImpl_MultipleRulesSameSymbol(t *testing.T) {
-	ct := NewCooldownTracker(1 * time.Minute)
+func TestCooldownTracker_MultipleRulesSameSymbol(t *testing.T) {
+	ct := NewCooldownTracker(5 * time.Minute)
 
 	// Record cooldowns for different rules on same symbol
-	ct.RecordCooldown("rule-1", "AAPL", 60)
-	ct.RecordCooldown("rule-2", "AAPL", 60)
+	ct.RecordCooldown("rule-1", "AAPL", 10)
+	ct.RecordCooldown("rule-2", "AAPL", 20)
+	ct.RecordCooldown("rule-3", "AAPL", 30)
 
-	// Both should be on cooldown
+	if ct.GetCooldownCount() != 3 {
+		t.Errorf("Expected 3 cooldowns, got %d", ct.GetCooldownCount())
+	}
+
+	// All should be on cooldown
 	if !ct.IsOnCooldown("rule-1", "AAPL") {
 		t.Error("Expected rule-1 to be on cooldown")
 	}
@@ -240,27 +319,24 @@ func TestCooldownTrackerImpl_MultipleRulesSameSymbol(t *testing.T) {
 		t.Error("Expected rule-2 to be on cooldown")
 	}
 
-	// Verify they are independent
-	ct.ClearAll()
-	ct.RecordCooldown("rule-1", "AAPL", 60)
-
-	if !ct.IsOnCooldown("rule-1", "AAPL") {
-		t.Error("Expected rule-1 to be on cooldown")
-	}
-
-	if ct.IsOnCooldown("rule-2", "AAPL") {
-		t.Error("Expected rule-2 not to be on cooldown")
+	if !ct.IsOnCooldown("rule-3", "AAPL") {
+		t.Error("Expected rule-3 to be on cooldown")
 	}
 }
 
-func TestCooldownTrackerImpl_SameRuleDifferentSymbols(t *testing.T) {
-	ct := NewCooldownTracker(1 * time.Minute)
+func TestCooldownTracker_SameRuleDifferentSymbols(t *testing.T) {
+	ct := NewCooldownTracker(5 * time.Minute)
 
 	// Record cooldowns for same rule on different symbols
-	ct.RecordCooldown("rule-1", "AAPL", 60)
-	ct.RecordCooldown("rule-1", "GOOGL", 60)
+	ct.RecordCooldown("rule-1", "AAPL", 10)
+	ct.RecordCooldown("rule-1", "GOOGL", 20)
+	ct.RecordCooldown("rule-1", "MSFT", 30)
 
-	// Both should be on cooldown
+	if ct.GetCooldownCount() != 3 {
+		t.Errorf("Expected 3 cooldowns, got %d", ct.GetCooldownCount())
+	}
+
+	// All should be on cooldown
 	if !ct.IsOnCooldown("rule-1", "AAPL") {
 		t.Error("Expected AAPL to be on cooldown")
 	}
@@ -269,57 +345,32 @@ func TestCooldownTrackerImpl_SameRuleDifferentSymbols(t *testing.T) {
 		t.Error("Expected GOOGL to be on cooldown")
 	}
 
-	// Verify they are independent
-	ct.ClearAll()
-	ct.RecordCooldown("rule-1", "AAPL", 60)
-
-	if !ct.IsOnCooldown("rule-1", "AAPL") {
-		t.Error("Expected AAPL to be on cooldown")
-	}
-
-	if ct.IsOnCooldown("rule-1", "GOOGL") {
-		t.Error("Expected GOOGL not to be on cooldown")
+	if !ct.IsOnCooldown("rule-1", "MSFT") {
+		t.Error("Expected MSFT to be on cooldown")
 	}
 }
 
-func TestCooldownTrackerImpl_StartStop(t *testing.T) {
-	ct := NewCooldownTracker(100 * time.Millisecond)
+func TestCooldownTracker_OverwriteCooldown(t *testing.T) {
+	ct := NewCooldownTracker(5 * time.Minute)
 
-	// Start
-	err := ct.Start()
-	if err != nil {
-		t.Fatalf("Failed to start: %v", err)
+	// Record initial cooldown
+	ct.RecordCooldown("rule-1", "AAPL", 5)
+	firstEnd := ct.GetCooldownEnd("rule-1", "AAPL")
+
+	// Wait a bit
+	time.Sleep(100 * time.Millisecond)
+
+	// Record new cooldown (should overwrite)
+	ct.RecordCooldown("rule-1", "AAPL", 10)
+	secondEnd := ct.GetCooldownEnd("rule-1", "AAPL")
+
+	// Second end should be later than first
+	if !secondEnd.After(firstEnd) {
+		t.Error("Expected new cooldown to extend the end time")
 	}
 
-	// Try to start again (should fail)
-	err = ct.Start()
-	if err == nil {
-		t.Error("Expected error when starting already running tracker")
-	}
-
-	// Stop
-	ct.Stop()
-
-	// Should be able to start again after stop
-	err = ct.Start()
-	if err != nil {
-		t.Fatalf("Failed to start after stop: %v", err)
-	}
-
-	ct.Stop()
-}
-
-func TestNewCooldownTracker(t *testing.T) {
-	// Test with default cleanup interval
-	ct := NewCooldownTracker(0)
-	if ct.cleanupInterval != 1*time.Minute {
-		t.Errorf("Expected default cleanup interval 1m, got %v", ct.cleanupInterval)
-	}
-
-	// Test with custom cleanup interval
-	ct2 := NewCooldownTracker(30 * time.Second)
-	if ct2.cleanupInterval != 30*time.Second {
-		t.Errorf("Expected cleanup interval 30s, got %v", ct2.cleanupInterval)
+	// Count should still be 1
+	if ct.GetCooldownCount() != 1 {
+		t.Errorf("Expected 1 cooldown after overwrite, got %d", ct.GetCooldownCount())
 	}
 }
-

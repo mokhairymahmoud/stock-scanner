@@ -5,65 +5,57 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/mohamedkhairy/stock-scanner/pkg/logger"
 )
 
-// CooldownTrackerImpl implements the CooldownTracker interface
-// Manages per-rule, per-symbol cooldowns to prevent duplicate alerts
-type CooldownTrackerImpl struct {
+// InMemoryCooldownTracker is an in-memory implementation of CooldownTracker
+type InMemoryCooldownTracker struct {
 	mu        sync.RWMutex
 	cooldowns map[string]time.Time // Key: "ruleID|symbol", Value: cooldown end time
-	cleanupInterval time.Duration   // How often to clean up expired cooldowns
+	cleanupInterval time.Duration
 	ctx       context.Context
 	cancel    context.CancelFunc
 	wg        sync.WaitGroup
 	running   bool
-	stats     CooldownStats
 }
 
-// CooldownStats holds statistics about cooldown tracking
-type CooldownStats struct {
-	CooldownsActive  int64
-	CooldownsChecked int64
-	CooldownsHit     int64 // Number of times cooldown prevented an alert
-	CooldownsExpired int64
-	mu               sync.RWMutex
-}
-
-// NewCooldownTracker creates a new cooldown tracker
-func NewCooldownTracker(cleanupInterval time.Duration) *CooldownTrackerImpl {
+// NewCooldownTracker creates a new in-memory cooldown tracker
+func NewCooldownTracker(cleanupInterval time.Duration) *InMemoryCooldownTracker {
 	if cleanupInterval <= 0 {
-		cleanupInterval = 1 * time.Minute // Default: cleanup every minute
+		cleanupInterval = 5 * time.Minute // Default: cleanup every 5 minutes
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	return &CooldownTrackerImpl{
+	return &InMemoryCooldownTracker{
 		cooldowns:      make(map[string]time.Time),
 		cleanupInterval: cleanupInterval,
 		ctx:            ctx,
 		cancel:         cancel,
-		stats:          CooldownStats{},
 	}
 }
 
-// Start starts the cooldown tracker cleanup goroutine
-func (ct *CooldownTrackerImpl) Start() error {
+// Start starts the cooldown tracker (starts cleanup goroutine)
+func (ct *InMemoryCooldownTracker) Start() error {
 	ct.mu.Lock()
+	defer ct.mu.Unlock()
+
 	if ct.running {
-		ct.mu.Unlock()
 		return fmt.Errorf("cooldown tracker is already running")
 	}
-	ct.running = true
-	ct.mu.Unlock()
 
+	ct.running = true
+
+	// Start cleanup goroutine
 	ct.wg.Add(1)
-	go ct.cleanupLoop()
+	go ct.cleanup()
 
 	return nil
 }
 
 // Stop stops the cooldown tracker
-func (ct *CooldownTrackerImpl) Stop() {
+func (ct *InMemoryCooldownTracker) Stop() {
 	ct.mu.Lock()
 	if !ct.running {
 		ct.mu.Unlock()
@@ -77,112 +69,87 @@ func (ct *CooldownTrackerImpl) Stop() {
 }
 
 // IsOnCooldown checks if a rule is on cooldown for a symbol
-func (ct *CooldownTrackerImpl) IsOnCooldown(ruleID, symbol string) bool {
-	key := ct.getKey(ruleID, symbol)
+func (ct *InMemoryCooldownTracker) IsOnCooldown(ruleID, symbol string) bool {
+	if ruleID == "" || symbol == "" {
+		return false
+	}
+
+	key := ruleID + "|" + symbol
 
 	ct.mu.RLock()
-	cooldownEnd, exists := ct.cooldowns[key]
-	ct.mu.RUnlock()
+	defer ct.mu.RUnlock()
 
+	cooldownEnd, exists := ct.cooldowns[key]
 	if !exists {
-		ct.incrementChecked()
 		return false
 	}
-
-	ct.incrementChecked()
 
 	// Check if cooldown has expired
-	if time.Now().After(cooldownEnd) {
-		// Cooldown expired, remove it
-		ct.mu.Lock()
-		delete(ct.cooldowns, key)
-		ct.mu.Unlock()
-		ct.incrementExpired()
-		return false
-	}
-
-	// Still on cooldown
-	ct.incrementHit()
-	return true
+	return time.Now().Before(cooldownEnd)
 }
 
 // RecordCooldown records that a rule fired for a symbol (starts cooldown)
-func (ct *CooldownTrackerImpl) RecordCooldown(ruleID, symbol string, cooldownSeconds int) {
-	if cooldownSeconds <= 0 {
-		return // No cooldown
+func (ct *InMemoryCooldownTracker) RecordCooldown(ruleID, symbol string, cooldownSeconds int) {
+	if ruleID == "" || symbol == "" || cooldownSeconds <= 0 {
+		return
 	}
 
-	key := ct.getKey(ruleID, symbol)
+	key := ruleID + "|" + symbol
 	cooldownEnd := time.Now().Add(time.Duration(cooldownSeconds) * time.Second)
 
 	ct.mu.Lock()
-	ct.cooldowns[key] = cooldownEnd
-	activeCount := int64(len(ct.cooldowns))
-	ct.mu.Unlock()
+	defer ct.mu.Unlock()
 
-	ct.updateActiveCount(activeCount)
+	ct.cooldowns[key] = cooldownEnd
 }
 
-// GetActiveCooldownCount returns the number of active cooldowns
-func (ct *CooldownTrackerImpl) GetActiveCooldownCount() int {
+// GetCooldownEnd returns when the cooldown ends for a rule-symbol pair
+// Returns zero time if not on cooldown
+func (ct *InMemoryCooldownTracker) GetCooldownEnd(ruleID, symbol string) time.Time {
+	if ruleID == "" || symbol == "" {
+		return time.Time{}
+	}
+
+	key := ruleID + "|" + symbol
+
 	ct.mu.RLock()
 	defer ct.mu.RUnlock()
-	return len(ct.cooldowns)
+
+	return ct.cooldowns[key]
 }
 
-// GetStats returns current cooldown statistics
-func (ct *CooldownTrackerImpl) GetStats() CooldownStats {
-	ct.stats.mu.RLock()
-	defer ct.stats.mu.RUnlock()
-
-	// Return a copy
-	return CooldownStats{
-		CooldownsActive:  ct.stats.CooldownsActive,
-		CooldownsChecked: ct.stats.CooldownsChecked,
-		CooldownsHit:     ct.stats.CooldownsHit,
-		CooldownsExpired: ct.stats.CooldownsExpired,
+// ClearCooldown clears the cooldown for a rule-symbol pair
+func (ct *InMemoryCooldownTracker) ClearCooldown(ruleID, symbol string) {
+	if ruleID == "" || symbol == "" {
+		return
 	}
-}
 
-// ClearExpired removes all expired cooldowns
-func (ct *CooldownTrackerImpl) ClearExpired() int {
+	key := ruleID + "|" + symbol
+
 	ct.mu.Lock()
 	defer ct.mu.Unlock()
 
-	now := time.Now()
-	expiredCount := 0
-
-	for key, cooldownEnd := range ct.cooldowns {
-		if now.After(cooldownEnd) {
-			delete(ct.cooldowns, key)
-			expiredCount++
-		}
-	}
-
-	if expiredCount > 0 {
-		ct.updateActiveCount(int64(len(ct.cooldowns)))
-		ct.incrementExpiredBy(int64(expiredCount))
-	}
-
-	return expiredCount
+	delete(ct.cooldowns, key)
 }
 
-// ClearAll removes all cooldowns (useful for testing)
-func (ct *CooldownTrackerImpl) ClearAll() {
+// ClearAllCooldowns clears all cooldowns
+func (ct *InMemoryCooldownTracker) ClearAllCooldowns() {
 	ct.mu.Lock()
 	defer ct.mu.Unlock()
 
 	ct.cooldowns = make(map[string]time.Time)
-	ct.updateActiveCount(0)
 }
 
-// getKey generates a key for the cooldown map
-func (ct *CooldownTrackerImpl) getKey(ruleID, symbol string) string {
-	return ruleID + "|" + symbol
+// GetCooldownCount returns the number of active cooldowns
+func (ct *InMemoryCooldownTracker) GetCooldownCount() int {
+	ct.mu.RLock()
+	defer ct.mu.RUnlock()
+
+	return len(ct.cooldowns)
 }
 
-// cleanupLoop periodically cleans up expired cooldowns
-func (ct *CooldownTrackerImpl) cleanupLoop() {
+// cleanup periodically removes expired cooldowns
+func (ct *InMemoryCooldownTracker) cleanup() {
 	defer ct.wg.Done()
 
 	ticker := time.NewTicker(ct.cleanupInterval)
@@ -193,43 +160,33 @@ func (ct *CooldownTrackerImpl) cleanupLoop() {
 		case <-ct.ctx.Done():
 			return
 		case <-ticker.C:
-			ct.ClearExpired()
+			ct.cleanupExpired()
 		}
 	}
 }
 
-// incrementChecked increments the checked counter
-func (ct *CooldownTrackerImpl) incrementChecked() {
-	ct.stats.mu.Lock()
-	defer ct.stats.mu.Unlock()
-	ct.stats.CooldownsChecked++
-}
+// cleanupExpired removes expired cooldowns
+func (ct *InMemoryCooldownTracker) cleanupExpired() {
+	ct.mu.Lock()
+	defer ct.mu.Unlock()
 
-// incrementHit increments the hit counter
-func (ct *CooldownTrackerImpl) incrementHit() {
-	ct.stats.mu.Lock()
-	defer ct.stats.mu.Unlock()
-	ct.stats.CooldownsHit++
-}
+	now := time.Now()
+	expired := make([]string, 0)
 
-// incrementExpired increments the expired counter
-func (ct *CooldownTrackerImpl) incrementExpired() {
-	ct.stats.mu.Lock()
-	defer ct.stats.mu.Unlock()
-	ct.stats.CooldownsExpired++
-}
+	for key, cooldownEnd := range ct.cooldowns {
+		if now.After(cooldownEnd) {
+			expired = append(expired, key)
+		}
+	}
 
-// incrementExpiredBy increments the expired counter by a value
-func (ct *CooldownTrackerImpl) incrementExpiredBy(count int64) {
-	ct.stats.mu.Lock()
-	defer ct.stats.mu.Unlock()
-	ct.stats.CooldownsExpired += count
-}
+	// Remove expired cooldowns
+	for _, key := range expired {
+		delete(ct.cooldowns, key)
+	}
 
-// updateActiveCount updates the active cooldown count
-func (ct *CooldownTrackerImpl) updateActiveCount(count int64) {
-	ct.stats.mu.Lock()
-	defer ct.stats.mu.Unlock()
-	ct.stats.CooldownsActive = count
+	if len(expired) > 0 {
+		logger.Debug("Cleaned up expired cooldowns",
+			logger.Int("count", len(expired)),
+		)
+	}
 }
-
