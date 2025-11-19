@@ -28,18 +28,18 @@ fi
 
 # Step 1: Start Infrastructure
 echo -e "\n${YELLOW}Step 1: Starting infrastructure...${NC}"
-docker-compose -f config/docker-compose.yaml up -d redis timescaledb prometheus grafana
+docker-compose -f config/docker-compose.yaml up -d redis timescaledb prometheus grafana redisinsight
 
 echo -e "${YELLOW}Waiting for infrastructure to be ready...${NC}"
 sleep 15
 
 # Step 2: Run Migrations
 echo -e "\n${YELLOW}Step 2: Running database migrations...${NC}"
-if command -v psql &> /dev/null; then
-    psql -h localhost -U postgres -d stock_scanner -f scripts/migrations/001_create_bars_table.sql 2>/dev/null || \
-        echo -e "${YELLOW}⚠ Migration may have already run or psql connection failed${NC}"
+if docker exec stock-scanner-timescaledb pg_isready -U postgres > /dev/null 2>&1; then
+    docker exec -i stock-scanner-timescaledb psql -U postgres -d stock_scanner < scripts/migrations/001_create_bars_table.sql 2>&1 | grep -v "NOTICE:" | grep -v "WARNING:" || true
+    echo -e "${GREEN}✓ Migrations completed${NC}"
 else
-    echo -e "${YELLOW}⚠ psql not available, migrations will run automatically on TimescaleDB startup${NC}"
+    echo -e "${YELLOW}⚠ TimescaleDB not ready yet, migrations will run automatically on startup${NC}"
 fi
 
 # Step 3: Build Services

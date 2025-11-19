@@ -1,3 +1,6 @@
+-- Enable TimescaleDB extension
+CREATE EXTENSION IF NOT EXISTS timescaledb;
+
 -- Create bars table with TimescaleDB hypertable
 CREATE TABLE IF NOT EXISTS bars_1m (
     symbol VARCHAR(10) NOT NULL,

@@ -117,6 +117,7 @@ docker-compose -f config/docker-compose.yaml logs -f ingest bars
 
 - **Prometheus**: http://localhost:9090
 - **Grafana**: http://localhost:3000 (admin/admin)
+- **RedisInsight**: http://localhost:8001 (Redis GUI)
 - **Service Health**:
   - Ingest: http://localhost:8081/health
   - Bars: http://localhost:8083/health

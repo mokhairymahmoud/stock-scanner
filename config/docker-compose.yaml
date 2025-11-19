@@ -81,6 +81,26 @@ services:
     networks:
       - stock-scanner-network
 
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: stock-scanner-redisinsight
+    ports:
+      - "8001:5540"
+    volumes:
+      - redisinsight-data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:5540/api/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    networks:
+      - stock-scanner-network
+    restart: unless-stopped
+
   # Go Microservices
   ingest:
     build:
@@ -261,6 +281,7 @@ volumes:
   timescaledb-data:
   prometheus-data:
   grafana-data:
+  redisinsight-data:
 
 networks:
   stock-scanner-network:

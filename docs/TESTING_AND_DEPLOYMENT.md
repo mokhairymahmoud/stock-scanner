@@ -230,6 +230,14 @@ SELECT * FROM bars_1m WHERE symbol = 'AAPL' ORDER BY timestamp DESC LIMIT 10;
 - Login: admin/admin
 - Add Prometheus as data source: http://prometheus:9090
 
+### RedisInsight
+- URL: http://localhost:8001
+- Redis GUI for inspecting data, streams, and keys
+- Connect to Redis using:
+  - Host: `redis` (from within Docker network) or `localhost` (from host)
+  - Port: `6379`
+  - No password (unless configured)
+
 ### Service Logs
 
 ```bash

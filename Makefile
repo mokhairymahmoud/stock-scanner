@@ -32,7 +32,7 @@ clean: ## Clean build artifacts
 
 docker-up: ## Start Docker Compose services (infrastructure only)
 	@echo "Starting Docker Compose services (infrastructure)..."
-	@docker-compose -f config/docker-compose.yaml up -d redis timescaledb prometheus grafana
+	@docker-compose -f config/docker-compose.yaml up -d redis timescaledb prometheus grafana redisinsight
 
 docker-up-all: ## Start all Docker Compose services (including Go services)
 	@echo "Starting all Docker Compose services..."
@@ -67,9 +67,14 @@ docker-verify: ## Verify deployment
 	@echo "Verifying deployment..."
 	@./scripts/verify_deployment.sh
 
-migrate-up: ## Run database migrations
+migrate-up: ## Run database migrations (uses Docker)
 	@echo "Running migrations..."
-	@psql -h localhost -U postgres -d stock_scanner -f scripts/migrations/001_create_bars_table.sql
+	@docker exec -i stock-scanner-timescaledb psql -U postgres -d stock_scanner < scripts/migrations/001_create_bars_table.sql || \
+		(echo "⚠️  TimescaleDB container not running. Starting infrastructure..." && \
+		 docker-compose -f config/docker-compose.yaml up -d timescaledb && \
+		 echo "Waiting for database to be ready..." && \
+		 sleep 10 && \
+		 docker exec -i stock-scanner-timescaledb psql -U postgres -d stock_scanner < scripts/migrations/001_create_bars_table.sql)
 
 fmt: ## Format code
 	@echo "Formatting code..."

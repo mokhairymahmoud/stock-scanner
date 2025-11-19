@@ -86,6 +86,7 @@ curl http://localhost:8083/health | jq .
 - **TimescaleDB**: localhost:5432
 - **Prometheus**: http://localhost:9090
 - **Grafana**: http://localhost:3000 (admin/admin)
+- **RedisInsight**: http://localhost:8001
 
 ## Data Flow Verification
 

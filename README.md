@@ -217,6 +217,7 @@ Key configuration areas:
 
 - **Prometheus**: http://localhost:9090
 - **Grafana**: http://localhost:3000 (if enabled)
+- **RedisInsight**: http://localhost:8001 (Redis GUI)
 - **Health Checks**: Each service exposes `/health` and `/metrics` endpoints
 
 ## Documentation

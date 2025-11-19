@@ -52,6 +52,13 @@ check_infrastructure() {
     else
         echo -e "${RED}✗ Prometheus${NC}"
     fi
+    
+    # RedisInsight
+    if curl -s -f "http://localhost:8001/api/health" > /dev/null 2>&1; then
+        echo -e "${GREEN}✓ RedisInsight${NC}"
+    else
+        echo -e "${RED}✗ RedisInsight${NC}"
+    fi
 }
 
 # Check Go services
@@ -109,6 +116,7 @@ main() {
     echo -e "  Bars Metrics: http://localhost:8083/metrics"
     echo -e "  Prometheus: http://localhost:9090"
     echo -e "  Grafana: http://localhost:3000"
+    echo -e "  RedisInsight: http://localhost:8001"
 }
 
 main
