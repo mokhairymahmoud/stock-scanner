@@ -284,17 +284,19 @@ func main() {
 	logger.Info("Scanner worker service stopped")
 }
 
-// parseWorkerID parses worker ID from string format "worker-1" -> 1
+// parseWorkerID parses worker ID from string format "worker-1" -> 0 (0-indexed)
+// Supports formats: "worker-1" (1-based) -> 0, "worker-2" -> 1, etc.
+// Or direct integer: "0" -> 0, "1" -> 1
 func parseWorkerID(workerIDStr string) int {
-	// Try to extract number from "worker-1" format
+	// Try to extract number from "worker-1" format (1-based, convert to 0-based)
 	if len(workerIDStr) > 7 && workerIDStr[:7] == "worker-" {
 		id, err := strconv.Atoi(workerIDStr[7:])
-		if err == nil {
-			return id
+		if err == nil && id > 0 {
+			return id - 1 // Convert 1-based to 0-based (worker-1 -> 0, worker-2 -> 1)
 		}
 	}
 
-	// Try direct integer parse
+	// Try direct integer parse (0-based)
 	id, err := strconv.Atoi(workerIDStr)
 	if err == nil {
 		return id
@@ -353,7 +355,7 @@ func setupHealthAndMetricsServer(
 					"stats":   barHandler.GetStats(),
 				},
 				"cooldown_tracker": map[string]interface{}{
-					"status":        "ok",
+					"status":         "ok",
 					"cooldown_count": cooldownTracker.GetCooldownCount(),
 				},
 				"alert_emitter": map[string]interface{}{
@@ -410,18 +412,18 @@ func setupHealthAndMetricsServer(
 			"state_manager": map[string]interface{}{
 				"symbol_count": stateManager.GetSymbolCount(),
 			},
-			"scan_loop": scanLoop.GetStats(),
-			"tick_consumer": tickConsumer.GetStats(),
+			"scan_loop":          scanLoop.GetStats(),
+			"tick_consumer":      tickConsumer.GetStats(),
 			"indicator_consumer": indicatorConsumer.GetStats(),
-			"bar_handler": barHandler.GetStats(),
+			"bar_handler":        barHandler.GetStats(),
 			"cooldown_tracker": map[string]interface{}{
 				"cooldown_count": cooldownTracker.GetCooldownCount(),
 			},
 			"alert_emitter": alertEmitter.GetStats(),
 			"partition_manager": map[string]interface{}{
-				"worker_id":      partitionManager.GetWorkerID(),
-				"total_workers":  partitionManager.GetTotalWorkers(),
-				"assigned_count": partitionManager.GetAssignedSymbolCount(),
+				"worker_id":        partitionManager.GetWorkerID(),
+				"total_workers":    partitionManager.GetTotalWorkers(),
+				"assigned_count":   partitionManager.GetAssignedSymbolCount(),
 				"assigned_symbols": partitionManager.GetAssignedSymbols(),
 			},
 		}
