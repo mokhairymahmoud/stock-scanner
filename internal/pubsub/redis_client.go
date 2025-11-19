@@ -94,14 +94,44 @@ func (r *RedisClientImpl) PublishBatchToStream(ctx context.Context, stream strin
 func (r *RedisClientImpl) ConsumeFromStream(ctx context.Context, stream string, group string, consumer string) (<-chan storage.StreamMessage, error) {
 	messageChan := make(chan storage.StreamMessage, 100)
 
-	// Create consumer group if it doesn't exist
-	err := r.client.XGroupCreateMkStream(ctx, stream, group, "0").Err()
-	if err != nil && err.Error() != "BUSYGROUP Consumer Group name already exists" {
-		logger.Warn("Failed to create consumer group (may already exist)",
+	// Create consumer group if it doesn't exist (with retry)
+	// XGroupCreateMkStream creates the stream if it doesn't exist (MKSTREAM)
+	var groupCreated bool
+	for i := 0; i < 3; i++ {
+		err := r.client.XGroupCreateMkStream(ctx, stream, group, "0").Err()
+		if err == nil {
+			groupCreated = true
+			logger.Debug("Created consumer group",
+				logger.String("stream", stream),
+				logger.String("group", group),
+			)
+			break
+		}
+		// BUSYGROUP means group already exists - that's OK
+		if err.Error() == "BUSYGROUP Consumer Group name already exists" {
+			groupCreated = true
+			logger.Debug("Consumer group already exists",
+				logger.String("stream", stream),
+				logger.String("group", group),
+			)
+			break
+		}
+		// For other errors, retry after a short delay
+		logger.Warn("Failed to create consumer group, retrying",
 			logger.ErrorField(err),
 			logger.String("stream", stream),
 			logger.String("group", group),
+			logger.Int("attempt", i+1),
 		)
+		time.Sleep(time.Second * time.Duration(i+1))
+	}
+
+	if !groupCreated {
+		logger.Error("Failed to create consumer group after retries",
+			logger.String("stream", stream),
+			logger.String("group", group),
+		)
+		// Continue anyway - will retry in the read loop
 	}
 
 	go func() {
@@ -127,6 +157,28 @@ func (r *RedisClientImpl) ConsumeFromStream(ctx context.Context, stream string, 
 				if err == redis.Nil {
 					continue
 				}
+				
+				// Handle NOGROUP error - try to recreate the group
+				errStr := err.Error()
+				if strings.Contains(errStr, "NOGROUP") {
+					logger.Warn("Consumer group not found, attempting to create",
+						logger.String("stream", stream),
+						logger.String("group", group),
+					)
+					// Try to create the group again
+					createErr := r.client.XGroupCreateMkStream(ctx, stream, group, "0").Err()
+					if createErr != nil && createErr.Error() != "BUSYGROUP Consumer Group name already exists" {
+						logger.Error("Failed to recreate consumer group",
+							logger.ErrorField(createErr),
+							logger.String("stream", stream),
+							logger.String("group", group),
+						)
+					}
+					// Wait a bit before retrying
+					time.Sleep(2 * time.Second)
+					continue
+				}
+				
 				logger.Error("Error reading from stream",
 					logger.ErrorField(err),
 					logger.String("stream", stream),
