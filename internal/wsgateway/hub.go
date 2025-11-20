@@ -76,6 +76,10 @@ func (h *Hub) Start() error {
 	h.wg.Add(1)
 	go h.consumeAlerts()
 
+	// Start consuming toplist updates from pub/sub
+	h.wg.Add(1)
+	go h.consumeToplistUpdates()
+
 	// Start connection health monitor
 	h.wg.Add(1)
 	go h.monitorConnections()
@@ -328,6 +332,101 @@ func (h *Hub) readPump(conn *Connection) {
 				logger.String("connection_id", conn.ID),
 			)
 		}
+	}
+}
+
+// consumeToplistUpdates consumes toplist updates from Redis pub/sub and broadcasts them
+func (h *Hub) consumeToplistUpdates() {
+	defer h.wg.Done()
+
+	messageChan, err := h.redis.Subscribe(h.ctx, "toplists.updated")
+	if err != nil {
+		logger.Error("Failed to subscribe to toplist updates",
+			logger.ErrorField(err),
+			logger.String("channel", "toplists.updated"),
+		)
+		return
+	}
+
+	logger.Info("Subscribed to toplist updates",
+		logger.String("channel", "toplists.updated"),
+	)
+
+	for {
+		select {
+		case <-h.ctx.Done():
+			return
+		case msg, ok := <-messageChan:
+			if !ok {
+				logger.Warn("Toplist update channel closed")
+				return
+			}
+
+			if msg.Channel != "toplists.updated" {
+				continue
+			}
+
+			// Parse toplist update message
+			var updateData map[string]interface{}
+			if err := json.Unmarshal([]byte(msg.Message), &updateData); err != nil {
+				logger.Warn("Failed to parse toplist update",
+					logger.ErrorField(err),
+				)
+				continue
+			}
+
+			toplistID, ok := updateData["toplist_id"].(string)
+			if !ok || toplistID == "" {
+				logger.Warn("Toplist update missing toplist_id")
+				continue
+			}
+
+			toplistType, _ := updateData["toplist_type"].(string)
+			if toplistType == "" {
+				toplistType = "system"
+			}
+
+			// Broadcast to subscribed connections
+			h.broadcastToplistUpdate(toplistID, toplistType, updateData)
+		}
+	}
+}
+
+// broadcastToplistUpdate broadcasts a toplist update to subscribed connections
+func (h *Hub) broadcastToplistUpdate(toplistID string, toplistType string, updateData map[string]interface{}) {
+	connections := h.registry.GetAll()
+	broadcastCount := 0
+
+	for _, conn := range connections {
+		if conn.IsSubscribedToToplist(toplistID) {
+			message := ServerMessage{
+				Type: "toplist_update",
+				Data: map[string]interface{}{
+					"toplist_id":   toplistID,
+					"toplist_type":  toplistType,
+					"timestamp":     updateData["timestamp"],
+					"update_data":   updateData,
+				},
+			}
+
+			if err := conn.WriteJSON(message); err != nil {
+				logger.Debug("Failed to send toplist update to connection",
+					logger.ErrorField(err),
+					logger.String("connection_id", conn.ID),
+					logger.String("toplist_id", toplistID),
+				)
+				continue
+			}
+
+			broadcastCount++
+		}
+	}
+
+	if broadcastCount > 0 {
+		logger.Debug("Broadcast toplist update",
+			logger.String("toplist_id", toplistID),
+			logger.Int("connections", broadcastCount),
+		)
 	}
 }
 

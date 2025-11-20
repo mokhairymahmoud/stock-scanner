@@ -13,31 +13,33 @@ import (
 
 // Connection represents a WebSocket connection with a client
 type Connection struct {
-	ID        string
-	UserID    string
-	Conn      *websocket.Conn
-	Send      chan []byte
-	Subscriptions map[string]bool // symbol -> subscribed
-	mu        sync.RWMutex
-	ctx       context.Context
-	cancel    context.CancelFunc
-	lastPong  time.Time
-	createdAt time.Time
+	ID                string
+	UserID            string
+	Conn              *websocket.Conn
+	Send              chan []byte
+	Subscriptions     map[string]bool // symbol -> subscribed
+	ToplistSubscriptions map[string]bool // toplist_id -> subscribed
+	mu                sync.RWMutex
+	ctx               context.Context
+	cancel            context.CancelFunc
+	lastPong          time.Time
+	createdAt         time.Time
 }
 
 // NewConnection creates a new WebSocket connection
 func NewConnection(id string, userID string, conn *websocket.Conn) *Connection {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Connection{
-		ID:            id,
-		UserID:        userID,
-		Conn:          conn,
-		Send:          make(chan []byte, 256), // Buffered channel
-		Subscriptions: make(map[string]bool),
-		ctx:           ctx,
-		cancel:        cancel,
-		createdAt:     time.Now(),
-		lastPong:      time.Now(),
+		ID:                  id,
+		UserID:              userID,
+		Conn:                conn,
+		Send:                make(chan []byte, 256), // Buffered channel
+		Subscriptions:       make(map[string]bool),
+		ToplistSubscriptions: make(map[string]bool),
+		ctx:                 ctx,
+		cancel:              cancel,
+		createdAt:           time.Now(),
+		lastPong:            time.Now(),
 	}
 }
 
@@ -74,6 +76,27 @@ func (c *Connection) ShouldReceiveAlert(alert *models.Alert) bool {
 	
 	// Check if subscribed to this symbol
 	return c.Subscriptions[alert.Symbol]
+}
+
+// SubscribeToplist subscribes to toplist updates
+func (c *Connection) SubscribeToplist(toplistID string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.ToplistSubscriptions[toplistID] = true
+}
+
+// UnsubscribeToplist unsubscribes from toplist updates
+func (c *Connection) UnsubscribeToplist(toplistID string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.ToplistSubscriptions, toplistID)
+}
+
+// IsSubscribedToToplist checks if the connection is subscribed to a toplist
+func (c *Connection) IsSubscribedToToplist(toplistID string) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.ToplistSubscriptions[toplistID]
 }
 
 // UpdateLastPong updates the last pong time

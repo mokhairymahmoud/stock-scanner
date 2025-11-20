@@ -11,10 +11,12 @@ import (
 type MessageType string
 
 const (
-	MessageTypeSubscribe   MessageType = "subscribe"
-	MessageTypeUnsubscribe MessageType = "unsubscribe"
-	MessageTypePing        MessageType = "ping"
-	MessageTypePong        MessageType = "pong"
+	MessageTypeSubscribe        MessageType = "subscribe"
+	MessageTypeUnsubscribe      MessageType = "unsubscribe"
+	MessageTypeSubscribeToplist MessageType = "subscribe_toplist"
+	MessageTypeUnsubscribeToplist MessageType = "unsubscribe_toplist"
+	MessageTypePing             MessageType = "ping"
+	MessageTypePong             MessageType = "pong"
 )
 
 // ClientMessage represents a message from the client
@@ -79,6 +81,32 @@ func (c *Connection) HandleClientMessage(msg *ClientMessage) error {
 			return c.SendSuccess("unsubscribed", map[string]interface{}{"symbols": msg.Symbols})
 		}
 		return c.SendError("invalid_request", "symbol or symbols field required")
+
+	case MessageTypeSubscribeToplist:
+		toplistID := msg.Symbol // Reuse Symbol field for toplist ID
+		if toplistID == "" {
+			return c.SendError("invalid_request", "toplist_id field required")
+		}
+		c.SubscribeToplist(toplistID)
+		logger.Debug("Client subscribed to toplist",
+			logger.String("connection_id", c.ID),
+			logger.String("user_id", c.UserID),
+			logger.String("toplist_id", toplistID),
+		)
+		return c.SendSuccess("subscribed_toplist", map[string]string{"toplist_id": toplistID})
+
+	case MessageTypeUnsubscribeToplist:
+		toplistID := msg.Symbol // Reuse Symbol field for toplist ID
+		if toplistID == "" {
+			return c.SendError("invalid_request", "toplist_id field required")
+		}
+		c.UnsubscribeToplist(toplistID)
+		logger.Debug("Client unsubscribed from toplist",
+			logger.String("connection_id", c.ID),
+			logger.String("user_id", c.UserID),
+			logger.String("toplist_id", toplistID),
+		)
+		return c.SendSuccess("unsubscribed_toplist", map[string]string{"toplist_id": toplistID})
 
 	case MessageTypePing:
 		// Respond with pong

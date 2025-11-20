@@ -950,34 +950,26 @@ See Phase 5 for detailed implementation tasks.
   - [ ] Indexes: `user_id`, `enabled`, `created_at`
 - [ ] Test migration script
 
-#### 5.7 API Service Integration (`cmd/api`)
-- [ ] Implement ToplistHandler (`internal/api/toplist_handler.go`)
-  - [ ] `ListToplists` - GET /api/v1/toplists (system + user)
-  - [ ] `GetSystemToplist` - GET /api/v1/toplists/system/:type
-  - [ ] `ListUserToplists` - GET /api/v1/toplists/user
-  - [ ] `CreateUserToplist` - POST /api/v1/toplists/user
-  - [ ] `GetUserToplist` - GET /api/v1/toplists/user/:id
-  - [ ] `UpdateUserToplist` - PUT /api/v1/toplists/user/:id
-  - [ ] `DeleteUserToplist` - DELETE /api/v1/toplists/user/:id
-  - [ ] `GetToplistRankings` - GET /api/v1/toplists/user/:id/rankings
-- [ ] Query parameter support:
-  - [ ] `limit` (default: 50, max: 500)
-  - [ ] `offset` (default: 0)
-  - [ ] `min_volume` (filter)
-  - [ ] `price_min`, `price_max` (filter)
-- [ ] Response format:
-  ```json
-  {
-    "toplist_id": "...",
-    "name": "...",
-    "rankings": [
-      {"symbol": "AAPL", "rank": 1, "value": 2.5, "metadata": {...}}
-    ],
-    "pagination": {"limit": 50, "offset": 0, "total": 100}
-  }
-  ```
-- [ ] Authentication and authorization (user can only access own toplists)
-- [ ] Unit tests for toplist handlers
+#### 5.7 API Service Integration (`cmd/api`) ✅ COMPLETE
+- [x] Implement ToplistHandler (`internal/api/toplist_handler.go`)
+  - [x] `ListToplists` - GET /api/v1/toplists (system + user)
+  - [x] `GetSystemToplist` - GET /api/v1/toplists/system/:type
+  - [x] `ListUserToplists` - GET /api/v1/toplists/user
+  - [x] `CreateUserToplist` - POST /api/v1/toplists/user
+  - [x] `GetUserToplist` - GET /api/v1/toplists/user/:id
+  - [x] `UpdateUserToplist` - PUT /api/v1/toplists/user/:id
+  - [x] `DeleteUserToplist` - DELETE /api/v1/toplists/user/:id
+  - [x] `GetToplistRankings` - GET /api/v1/toplists/user/:id/rankings
+- [x] Query parameter support:
+  - [x] `limit` (default: 50, max: 500)
+  - [x] `offset` (default: 0)
+  - [x] `min_volume` (filter)
+  - [x] `price_min`, `price_max` (filter)
+- [x] Add GetRankingsByConfig and GetCountByConfig to ToplistService for system toplists
+- [x] Authentication and authorization (user can only access own toplists)
+- [x] Integration in API main.go
+- [x] Export MockToplistStore for testing
+- [x] Unit tests for toplist handlers (5 test cases, all passing)
 
 #### 5.8 WebSocket Gateway Integration
 - [ ] Extend WebSocket protocol for toplist subscriptions (`internal/wsgateway/protocol.go`)
