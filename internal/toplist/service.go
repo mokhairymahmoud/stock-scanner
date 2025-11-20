@@ -10,31 +10,26 @@ import (
 	"github.com/mohamedkhairy/stock-scanner/pkg/logger"
 )
 
-const (
-	// ToplistConfigCacheTTL is the TTL for cached toplist configurations (1 hour)
-	ToplistConfigCacheTTL = 1 * time.Hour
-)
-
-// ToplistService manages toplist operations including ranking computation and updates
+// ToplistService manages toplist operations including ranking computation
 type ToplistService struct {
-	store      ToplistStore
+	store       ToplistStore
 	redisClient storage.RedisClient
-	updater    ToplistUpdater
+	updater     ToplistUpdater
 }
 
 // NewToplistService creates a new toplist service
 func NewToplistService(store ToplistStore, redisClient storage.RedisClient, updater ToplistUpdater) *ToplistService {
 	return &ToplistService{
-		store:      store,
+		store:       store,
 		redisClient: redisClient,
-		updater:    updater,
+		updater:     updater,
 	}
 }
 
-// GetToplistRankings retrieves rankings for a toplist with optional filters
-func (s *ToplistService) GetToplistRankings(ctx context.Context, toplistID string, limit int, offset int) ([]models.ToplistRanking, error) {
-	// Load toplist configuration
-	config, err := s.getToplistConfig(ctx, toplistID)
+// GetToplistRankings retrieves rankings for a toplist with optional filtering
+func (s *ToplistService) GetToplistRankings(ctx context.Context, toplistID string, limit, offset int, filters *models.ToplistFilter) ([]models.ToplistRanking, error) {
+	// Get toplist configuration
+	config, err := s.store.GetToplistConfig(ctx, toplistID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get toplist config: %w", err)
 	}
@@ -48,141 +43,155 @@ func (s *ToplistService) GetToplistRankings(ctx context.Context, toplistID strin
 	}
 
 	// Get rankings from Redis ZSET
+	// For descending order, use ZRevRange (highest to lowest)
+	// For ascending order, we'd need ZRange, but for now we'll use ZRevRange and reverse if needed
 	start := int64(offset)
 	stop := int64(offset + limit - 1)
+	if stop < 0 {
+		stop = 0
+	}
+
+	members, err := s.redisClient.ZRevRange(ctx, redisKey, start, stop)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get rankings from Redis: %w", err)
+	}
+
+	// Convert to ToplistRanking format
+	rankings := make([]models.ToplistRanking, 0, len(members))
+	for i, member := range members {
+		ranking := models.ToplistRanking{
+			Symbol:   member.Member,
+			Rank:     offset + i + 1,
+			Value:    member.Score,
+			Metadata: make(map[string]interface{}),
+		}
+
+		// Apply filters if provided
+		if filters != nil {
+			// Note: For MVP, we'll do basic filtering here
+			// In production, you might want to pre-filter in Redis or use a more sophisticated approach
+			if filters.MinVolume != nil {
+				// Would need to fetch volume from symbol data
+				// For now, we'll skip this filter or implement it later
+			}
+			if filters.PriceMin != nil || filters.PriceMax != nil {
+				// Would need to fetch price from symbol data
+				// For now, we'll skip this filter or implement it later
+			}
+		}
+
+		rankings = append(rankings, ranking)
+	}
+
+	// If sort order is ascending, reverse the results
 	if config.SortOrder == models.SortOrderAsc {
-		// For ascending, we need to get from the beginning and reverse
-		// For now, we'll use ZREVRANGE and reverse if needed
-		// In production, we might want to use ZRANGE for ascending
-		members, err := s.redisClient.ZRevRange(ctx, redisKey, start, stop)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get rankings from Redis: %w", err)
+		for i, j := 0, len(rankings)-1; i < j; i, j = i+1, j-1 {
+			rankings[i], rankings[j] = rankings[j], rankings[i]
 		}
+	}
 
-		rankings := make([]models.ToplistRanking, len(members))
-		for i, member := range members {
-			rankings[i] = models.ToplistRanking{
-				Symbol:   member.Member,
-				Rank:     offset + i + 1,
-				Value:    member.Score,
-				Metadata: make(map[string]interface{}),
-			}
-		}
+	return rankings, nil
+}
 
-		// Reverse if ascending
-		if config.SortOrder == models.SortOrderAsc {
-			for i, j := 0, len(rankings)-1; i < j; i, j = i+1, j-1 {
-				rankings[i], rankings[j] = rankings[j], rankings[i]
-			}
-		}
+// GetToplistCount returns the total number of symbols in a toplist
+func (s *ToplistService) GetToplistCount(ctx context.Context, toplistID string) (int64, error) {
+	// Get toplist configuration
+	config, err := s.store.GetToplistConfig(ctx, toplistID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get toplist config: %w", err)
+	}
 
-		// Apply filters if specified
-		if config.Filters != nil {
-			rankings = s.applyFilters(rankings, config.Filters)
-		}
-
-		return rankings, nil
+	// Determine Redis key
+	var redisKey string
+	if config.IsSystemToplist() {
+		redisKey = models.GetSystemToplistRedisKey(config.Metric, config.TimeWindow)
 	} else {
-		// Descending order (default for ZREVRANGE)
-		members, err := s.redisClient.ZRevRange(ctx, redisKey, start, stop)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get rankings from Redis: %w", err)
-		}
-
-		rankings := make([]models.ToplistRanking, len(members))
-		for i, member := range members {
-			rankings[i] = models.ToplistRanking{
-				Symbol:   member.Member,
-				Rank:     offset + i + 1,
-				Value:    member.Score,
-				Metadata: make(map[string]interface{}),
-			}
-		}
-
-		// Apply filters if specified
-		if config.Filters != nil {
-			rankings = s.applyFilters(rankings, config.Filters)
-		}
-
-		return rankings, nil
+		redisKey = models.GetUserToplistRedisKey(config.UserID, toplistID)
 	}
+
+	// Get count from Redis
+	count, err := s.redisClient.ZCard(ctx, redisKey)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get toplist count: %w", err)
+	}
+
+	return count, nil
 }
 
-// getToplistConfig retrieves a toplist config, checking cache first
-func (s *ToplistService) getToplistConfig(ctx context.Context, toplistID string) (*models.ToplistConfig, error) {
-	// Try cache first
-	cacheKey := models.GetToplistConfigRedisKey(toplistID)
-	var config models.ToplistConfig
-	err := s.redisClient.GetJSON(ctx, cacheKey, &config)
-	if err == nil && config.ID != "" {
-		return &config, nil
-	}
+// CacheToplistConfig caches a toplist configuration in Redis
+func (s *ToplistService) CacheToplistConfig(ctx context.Context, config *models.ToplistConfig) error {
+	key := models.GetToplistConfigRedisKey(config.ID)
+	ttl := 1 * time.Hour
 
-		// Cache miss, load from database
-		configPtr, err := s.store.GetToplistConfig(ctx, toplistID)
-		if err != nil {
-			return nil, err
-		}
-
-		// Cache the config
-		if err := s.redisClient.Set(ctx, cacheKey, configPtr, ToplistConfigCacheTTL); err != nil {
-			logger.Warn("Failed to cache toplist config",
-				logger.ErrorField(err),
-				logger.String("toplist_id", toplistID),
-			)
-			// Don't fail if caching fails
-		}
-
-		return configPtr, nil
-}
-
-// applyFilters applies filters to rankings
-func (s *ToplistService) applyFilters(rankings []models.ToplistRanking, filters *models.ToplistFilter) []models.ToplistRanking {
-	if filters == nil {
-		return rankings
-	}
-
-	filtered := make([]models.ToplistRanking, 0, len(rankings))
-	for _, ranking := range rankings {
-		// Apply filters based on metadata
-		// Note: In a real implementation, we'd need to fetch additional data
-		// (price, volume, etc.) from Redis or database to apply filters
-		// For now, we'll just return all rankings
-		// TODO: Implement proper filtering when metadata is available
-		filtered = append(filtered, ranking)
-	}
-
-	return filtered
-}
-
-// ProcessToplistUpdate processes a toplist update notification
-func (s *ToplistService) ProcessToplistUpdate(ctx context.Context, toplistID string, toplistType string) error {
-	// For user toplists, we need to recompute rankings based on the config
-	if toplistType == "user" {
-		_, err := s.getToplistConfig(ctx, toplistID)
-		if err != nil {
-			return fmt.Errorf("failed to get toplist config: %w", err)
-		}
-
-		// Publish update notification
-		if err := s.updater.PublishUpdate(ctx, toplistID, toplistType); err != nil {
-			logger.Warn("Failed to publish toplist update",
-				logger.ErrorField(err),
-				logger.String("toplist_id", toplistID),
-			)
-		}
+	err := s.redisClient.Set(ctx, key, config, ttl)
+	if err != nil {
+		logger.Warn("Failed to cache toplist config",
+			logger.ErrorField(err),
+			logger.String("toplist_id", config.ID),
+		)
+		return err
 	}
 
 	return nil
 }
 
-// GetEnabledToplists returns all enabled toplists
-func (s *ToplistService) GetEnabledToplists(ctx context.Context) ([]*models.ToplistConfig, error) {
-	return s.store.GetEnabledToplists(ctx)
+// GetCachedToplistConfig retrieves a cached toplist configuration from Redis
+func (s *ToplistService) GetCachedToplistConfig(ctx context.Context, toplistID string) (*models.ToplistConfig, error) {
+	key := models.GetToplistConfigRedisKey(toplistID)
+	var config models.ToplistConfig
+
+	err := s.redisClient.GetJSON(ctx, key, &config)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if config was found
+	if config.ID == "" {
+		return nil, nil
+	}
+
+	return &config, nil
+}
+
+// RefreshToplistCache refreshes the cache for a toplist configuration
+func (s *ToplistService) RefreshToplistCache(ctx context.Context, toplistID string) error {
+	config, err := s.store.GetToplistConfig(ctx, toplistID)
+	if err != nil {
+		return err
+	}
+
+	return s.CacheToplistConfig(ctx, config)
+}
+
+// ProcessToplistUpdate processes a toplist update notification and republishes if needed
+func (s *ToplistService) ProcessToplistUpdate(ctx context.Context, toplistID string, toplistType string) error {
+	// For user toplists, we might need to recompute rankings
+	// For now, we'll just republish the update
+	if toplistType == "user" {
+		// Verify the toplist exists and is enabled
+		config, err := s.store.GetToplistConfig(ctx, toplistID)
+		if err != nil {
+			logger.Debug("Toplist not found, skipping update",
+				logger.String("toplist_id", toplistID),
+			)
+			return nil
+		}
+
+		if !config.Enabled {
+			return nil
+		}
+
+		// Republish update notification
+		return s.updater.PublishUpdate(ctx, toplistID, toplistType)
+	}
+
+	return nil
 }
 
 // Close closes the service
 func (s *ToplistService) Close() error {
-	return s.store.Close()
+	if s.store != nil {
+		return s.store.Close()
+	}
+	return nil
 }
-

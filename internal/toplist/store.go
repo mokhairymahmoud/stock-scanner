@@ -13,8 +13,8 @@ type ToplistStore interface {
 	// GetUserToplists retrieves all toplists for a user
 	GetUserToplists(ctx context.Context, userID string) ([]*models.ToplistConfig, error)
 
-	// GetEnabledToplists retrieves all enabled toplists (system + user)
-	GetEnabledToplists(ctx context.Context) ([]*models.ToplistConfig, error)
+	// GetEnabledToplists retrieves all enabled toplists (for a user or all system toplists)
+	GetEnabledToplists(ctx context.Context, userID string) ([]*models.ToplistConfig, error)
 
 	// CreateToplist creates a new toplist configuration
 	CreateToplist(ctx context.Context, config *models.ToplistConfig) error
@@ -25,7 +25,6 @@ type ToplistStore interface {
 	// DeleteToplist deletes a toplist configuration
 	DeleteToplist(ctx context.Context, toplistID string) error
 
-	// Close closes the store
+	// Close closes the store connection
 	Close() error
 }
-
