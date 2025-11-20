@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: stock-scanner
+  labels:
+    app: api
+    component: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+        component: api
+    spec:
+      containers:
+      - name: api
+        image: stock-scanner:latest
+        imagePullPolicy: IfNotPresent
+        command: ["./api"]
+        ports:
+        - name: http
+          containerPort: 8090
+        - name: health
+          containerPort: 8091
+        envFrom:
+        - configMapRef:
+            name: stock-scanner-config
+        - secretRef:
+            name: stock-scanner-secrets
+        env:
+        - name: API_JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: stock-scanner-secrets
+              key: API_JWT_SECRET
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: stock-scanner-secrets
+              key: DB_PASSWORD
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: stock-scanner-secrets
+              key: REDIS_PASSWORD
+              optional: true
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8091
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8091
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+

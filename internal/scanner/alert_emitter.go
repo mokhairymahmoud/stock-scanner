@@ -15,10 +15,10 @@ import (
 
 // AlertEmitterConfig holds configuration for the alert emitter
 type AlertEmitterConfig struct {
-	PubSubChannel string        // Redis pub/sub channel (default: "alerts")
-	StreamName    string        // Redis stream name (optional, for persistence)
+	PubSubChannel  string        // Redis pub/sub channel (default: "alerts")
+	StreamName     string        // Redis stream name (optional, for persistence)
 	PublishTimeout time.Duration // Timeout for publishing alerts
-	TraceIDHeader string        // Header name for trace ID (default: "X-Trace-ID")
+	TraceIDHeader  string        // Header name for trace ID (default: "X-Trace-ID")
 }
 
 // DefaultAlertEmitterConfig returns default configuration
@@ -43,11 +43,11 @@ type AlertEmitterImpl struct {
 
 // AlertEmitterStats holds statistics about alert emission
 type AlertEmitterStats struct {
-	AlertsEmitted    int64
-	AlertsPublished  int64
-	AlertsFailed     int64
-	LastAlertTime    time.Time
-	mu               sync.RWMutex
+	AlertsEmitted   int64
+	AlertsPublished int64
+	AlertsFailed    int64
+	LastAlertTime   time.Time
+	mu              sync.RWMutex
 }
 
 // NewAlertEmitter creates a new alert emitter
@@ -182,4 +182,3 @@ func (ae *AlertEmitterImpl) incrementFailed() {
 	defer ae.stats.mu.Unlock()
 	ae.stats.AlertsFailed++
 }
-

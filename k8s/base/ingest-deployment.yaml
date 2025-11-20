@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingest
+  namespace: stock-scanner
+  labels:
+    app: ingest
+    component: data-pipeline
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ingest
+  template:
+    metadata:
+      labels:
+        app: ingest
+        component: data-pipeline
+    spec:
+      containers:
+      - name: ingest
+        image: stock-scanner:latest
+        imagePullPolicy: IfNotPresent
+        command: ["./ingest"]
+        ports:
+        - name: http
+          containerPort: 8080
+        - name: health
+          containerPort: 8081
+        envFrom:
+        - configMapRef:
+            name: stock-scanner-config
+        - secretRef:
+            name: stock-scanner-secrets
+        env:
+        - name: MARKET_DATA_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: stock-scanner-secrets
+              key: MARKET_DATA_API_KEY
+        - name: MARKET_DATA_API_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: stock-scanner-secrets
+              key: MARKET_DATA_API_SECRET
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+

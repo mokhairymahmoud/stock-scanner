@@ -1,0 +1,77 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # Scrape logs from Docker containers using Docker service discovery
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        filters:
+          - name: label
+            values: ["com.docker.compose.project=stock-scanner"]
+    relabel_configs:
+      # Only keep stock-scanner containers
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_project']
+        regex: 'stock-scanner'
+        action: keep
+      # Extract service name from compose label
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: service
+      # Extract container name
+      - source_labels: ['__meta_docker_container_name']
+        target_label: container
+        regex: 'stock-scanner-(.*)'
+        replacement: '${1}'
+      # Set log path
+      - source_labels: ['__meta_docker_container_id']
+        target_label: __path__
+        replacement: '/var/lib/docker/containers/${1}/${1}-json.log'
+    pipeline_stages:
+      # Parse Docker JSON log format
+      - json:
+          expressions:
+            output: log
+            stream: stream
+            attrs: attrs
+            tag: tag
+      # Only process stdout logs
+      - match:
+          selector: '{stream="stdout"}'
+          stages:
+            # Parse application JSON logs (if structured)
+            - json:
+                expressions:
+                  timestamp: timestamp
+                  level: level
+                  msg: msg
+                  caller: caller
+                  service: service
+                  trace_id: trace_id
+                  span_id: span_id
+                source: output
+            # Set labels from parsed JSON
+            - labels:
+                level:
+                service:
+                trace_id:
+                span_id:
+            # Format timestamp if present
+            - timestamp:
+                source: timestamp
+                format: RFC3339Nano
+                fallback_to_current_time: true
+            # Output message
+            - output:
+                source: msg
+      # For non-JSON logs, just pass through
+      - output:
+          source: output
+

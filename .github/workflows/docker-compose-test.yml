@@ -1,0 +1,67 @@
+name: Docker Compose Test
+
+on:
+  push:
+    branches: [master, main, develop]
+  pull_request:
+    branches: [master, main, develop]
+  workflow_dispatch:
+
+jobs:
+  docker-compose-test:
+    name: Test with Docker Compose
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Start infrastructure services
+        run: |
+          docker-compose -f config/docker-compose.yaml up -d redis timescaledb prometheus grafana loki promtail jaeger
+          sleep 10
+
+      - name: Wait for services to be ready
+        run: |
+          timeout 60 bash -c 'until docker exec stock-scanner-redis redis-cli ping; do sleep 2; done'
+          timeout 60 bash -c 'until docker exec stock-scanner-timescaledb pg_isready -U postgres; do sleep 2; done'
+          timeout 60 bash -c 'until curl -f http://localhost:9090/-/healthy; do sleep 2; done'
+          timeout 60 bash -c 'until curl -f http://localhost:3000/api/health; do sleep 2; done'
+          timeout 60 bash -c 'until curl -f http://localhost:3100/ready; do sleep 2; done'
+          timeout 60 bash -c 'until curl -f http://localhost:16686/; do sleep 2; done'
+
+      - name: Run database migrations
+        run: |
+          docker exec -i stock-scanner-timescaledb psql -U postgres -d stock_scanner < scripts/migrations/001_create_bars_table.sql
+          docker exec -i stock-scanner-timescaledb psql -U postgres -d stock_scanner < scripts/migrations/002_create_alert_history_table.sql
+          docker exec -i stock-scanner-timescaledb psql -U postgres -d stock_scanner < scripts/migrations/003_create_rules_table.sql
+
+      - name: Build and start application services
+        run: |
+          docker-compose -f config/docker-compose.yaml build
+          docker-compose -f config/docker-compose.yaml up -d ingest bars indicator scanner alert ws-gateway api
+          sleep 15
+
+      - name: Verify services are running
+        run: |
+          docker-compose -f config/docker-compose.yaml ps
+          curl -f http://localhost:8081/health || exit 1
+          curl -f http://localhost:8083/health || exit 1
+          curl -f http://localhost:8085/health || exit 1
+          curl -f http://localhost:8087/health || exit 1
+          curl -f http://localhost:8093/health || exit 1
+          curl -f http://localhost:8089/health || exit 1
+          curl -f http://localhost:8091/health || exit 1
+
+      - name: Check service logs
+        if: failure()
+        run: |
+          docker-compose -f config/docker-compose.yaml logs --tail=100
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker-compose -f config/docker-compose.yaml down -v
+

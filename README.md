@@ -334,14 +334,14 @@ docker exec -it stock-scanner-timescaledb psql -U postgres -d stock_scanner \
 make run-ws-gateway
 
 # Verify service health
-curl http://localhost:8091/health | jq .
+curl http://localhost:8089/health | jq .
 # Expected: {"status":"healthy"}
 
 # Test WebSocket connection (using wscat or similar tool)
 # Install wscat: npm install -g wscat
 
 # Connect to WebSocket
-wscat -c ws://localhost:8091/ws
+wscat -c ws://localhost:8088/ws
 
 # After connecting, subscribe to symbols:
 # Send: {"type":"subscribe","symbols":["AAPL","MSFT"]}

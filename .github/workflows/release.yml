@@ -1,0 +1,86 @@
+name: Release
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., v1.0.0)'
+        required: true
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build binaries
+        run: |
+          mkdir -p release
+          GOOS=linux GOARCH=amd64 go build -o release/ingest-linux-amd64 ./cmd/ingest
+          GOOS=linux GOARCH=arm64 go build -o release/ingest-linux-arm64 ./cmd/ingest
+          GOOS=darwin GOARCH=amd64 go build -o release/ingest-darwin-amd64 ./cmd/ingest
+          GOOS=darwin GOARCH=arm64 go build -o release/ingest-darwin-arm64 ./cmd/ingest
+          GOOS=windows GOARCH=amd64 go build -o release/ingest-windows-amd64.exe ./cmd/ingest
+          
+          GOOS=linux GOARCH=amd64 go build -o release/bars-linux-amd64 ./cmd/bars
+          GOOS=linux GOARCH=arm64 go build -o release/bars-linux-arm64 ./cmd/bars
+          GOOS=darwin GOARCH=amd64 go build -o release/bars-darwin-amd64 ./cmd/bars
+          GOOS=darwin GOARCH=arm64 go build -o release/bars-darwin-arm64 ./cmd/bars
+          GOOS=windows GOARCH=amd64 go build -o release/bars-windows-amd64.exe ./cmd/bars
+          
+          GOOS=linux GOARCH=amd64 go build -o release/indicator-linux-amd64 ./cmd/indicator
+          GOOS=linux GOARCH=arm64 go build -o release/indicator-linux-arm64 ./cmd/indicator
+          GOOS=darwin GOARCH=amd64 go build -o release/indicator-darwin-amd64 ./cmd/indicator
+          GOOS=darwin GOARCH=arm64 go build -o release/indicator-darwin-arm64 ./cmd/indicator
+          GOOS=windows GOARCH=amd64 go build -o release/indicator-windows-amd64.exe ./cmd/indicator
+          
+          GOOS=linux GOARCH=amd64 go build -o release/scanner-linux-amd64 ./cmd/scanner
+          GOOS=linux GOARCH=arm64 go build -o release/scanner-linux-arm64 ./cmd/scanner
+          GOOS=darwin GOARCH=amd64 go build -o release/scanner-darwin-amd64 ./cmd/scanner
+          GOOS=darwin GOARCH=arm64 go build -o release/scanner-darwin-arm64 ./cmd/scanner
+          GOOS=windows GOARCH=amd64 go build -o release/scanner-windows-amd64.exe ./cmd/scanner
+          
+          GOOS=linux GOARCH=amd64 go build -o release/alert-linux-amd64 ./cmd/alert
+          GOOS=linux GOARCH=arm64 go build -o release/alert-linux-arm64 ./cmd/alert
+          GOOS=darwin GOARCH=amd64 go build -o release/alert-darwin-amd64 ./cmd/alert
+          GOOS=darwin GOARCH=arm64 go build -o release/alert-darwin-arm64 ./cmd/alert
+          GOOS=windows GOARCH=amd64 go build -o release/alert-windows-amd64.exe ./cmd/alert
+          
+          GOOS=linux GOARCH=amd64 go build -o release/ws-gateway-linux-amd64 ./cmd/ws_gateway
+          GOOS=linux GOARCH=arm64 go build -o release/ws-gateway-linux-arm64 ./cmd/ws_gateway
+          GOOS=darwin GOARCH=amd64 go build -o release/ws-gateway-darwin-amd64 ./cmd/ws_gateway
+          GOOS=darwin GOARCH=arm64 go build -o release/ws-gateway-darwin-arm64 ./cmd/ws_gateway
+          GOOS=windows GOARCH=amd64 go build -o release/ws-gateway-windows-amd64.exe ./cmd/ws_gateway
+          
+          GOOS=linux GOARCH=amd64 go build -o release/api-linux-amd64 ./cmd/api
+          GOOS=linux GOARCH=arm64 go build -o release/api-linux-arm64 ./cmd/api
+          GOOS=darwin GOARCH=amd64 go build -o release/api-darwin-amd64 ./cmd/api
+          GOOS=darwin GOARCH=arm64 go build -o release/api-darwin-arm64 ./cmd/api
+          GOOS=windows GOARCH=amd64 go build -o release/api-windows-amd64.exe ./cmd/api
+
+      - name: Create checksums
+        run: |
+          cd release
+          sha256sum * > checksums.txt
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: release-binaries
+          path: release/
+          retention-days: 90
+

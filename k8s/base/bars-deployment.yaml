@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bars
+  namespace: stock-scanner
+  labels:
+    app: bars
+    component: data-pipeline
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bars
+  template:
+    metadata:
+      labels:
+        app: bars
+        component: data-pipeline
+    spec:
+      containers:
+      - name: bars
+        image: stock-scanner:latest
+        imagePullPolicy: IfNotPresent
+        command: ["./bars"]
+        ports:
+        - name: http
+          containerPort: 8082
+        - name: health
+          containerPort: 8083
+        envFrom:
+        - configMapRef:
+            name: stock-scanner-config
+        - secretRef:
+            name: stock-scanner-secrets
+        env:
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: stock-scanner-secrets
+              key: DB_PASSWORD
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: stock-scanner-secrets
+              key: REDIS_PASSWORD
+              optional: true
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8083
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8083
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+

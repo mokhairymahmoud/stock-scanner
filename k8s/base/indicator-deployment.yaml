@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: indicator
+  namespace: stock-scanner
+  labels:
+    app: indicator
+    component: data-pipeline
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: indicator
+  template:
+    metadata:
+      labels:
+        app: indicator
+        component: data-pipeline
+    spec:
+      containers:
+      - name: indicator
+        image: stock-scanner:latest
+        imagePullPolicy: IfNotPresent
+        command: ["./indicator"]
+        ports:
+        - name: http
+          containerPort: 8084
+        - name: health
+          containerPort: 8085
+        envFrom:
+        - configMapRef:
+            name: stock-scanner-config
+        - secretRef:
+            name: stock-scanner-secrets
+        env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: stock-scanner-secrets
+              key: REDIS_PASSWORD
+              optional: true
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8085
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8085
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+
