@@ -15,6 +15,7 @@ import (
 	"github.com/mohamedkhairy/stock-scanner/internal/config"
 	"github.com/mohamedkhairy/stock-scanner/internal/indicator"
 	"github.com/mohamedkhairy/stock-scanner/internal/pubsub"
+	"github.com/mohamedkhairy/stock-scanner/internal/toplist"
 	indicatorpkg "github.com/mohamedkhairy/stock-scanner/pkg/indicator"
 	"github.com/mohamedkhairy/stock-scanner/pkg/logger"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -64,6 +65,13 @@ func main() {
 	// Initialize indicator publisher
 	publisherConfig := indicator.DefaultPublisherConfig()
 	publisher := indicator.NewPublisher(redisClient, publisherConfig)
+
+	// Initialize toplist updater if enabled
+	// Note: For MVP, we'll enable toplists by default
+	toplistUpdater := toplist.NewRedisToplistUpdater(redisClient)
+	publisher.SetToplistUpdater(toplistUpdater, true)
+	logger.Info("Toplist integration enabled for indicator engine")
+
 	if err := publisher.Start(); err != nil {
 		logger.Fatal("Failed to start indicator publisher",
 			logger.ErrorField(err),

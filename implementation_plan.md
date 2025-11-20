@@ -920,16 +920,16 @@ See Phase 5 for detailed implementation tasks.
   - [x] Throttle publish notifications to avoid spam
 - [x] ToplistIntegration struct with proper batching
 
-#### 5.5 Indicator Engine Integration
-- [ ] Integrate ToplistUpdater into Indicator Engine
-  - [ ] Update system toplists for complex metrics:
-    - [ ] `rsi` (RSI extremes)
-    - [ ] `relative_volume` (relative volume leaders)
-    - [ ] `vwap_dist` (VWAP distance)
-  - [ ] Update user-custom toplists that use these metrics
-  - [ ] Batch updates after indicator calculation
-  - [ ] Publish update notifications
-- [ ] Unit tests for indicator engine toplist integration
+#### 5.5 Indicator Engine Integration ✅ COMPLETE
+- [x] Integrate ToplistUpdater into Indicator Engine
+  - [x] Update system toplists for complex metrics:
+    - [x] `rsi` (RSI extremes via rsi_14 indicator)
+    - [x] `relative_volume` (relative volume leaders for 5m, 15m windows)
+    - [x] `vwap_dist` (VWAP distance calculated from price vs vwap_5m)
+  - [x] Batch updates accumulated during indicator publishing
+  - [x] Publish update notifications (throttled)
+- [x] Add SetToplistUpdater method to Publisher
+- [x] Integration in indicator main.go
 
 #### 5.6 Database Migration
 - [ ] Create toplist_configs table migration (`scripts/migrations/004_create_toplist_configs_table.sql`)

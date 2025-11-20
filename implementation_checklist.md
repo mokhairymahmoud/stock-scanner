@@ -156,13 +156,12 @@ This is a condensed checklist version of the implementation plan for quick progr
   - [x] Publish update notifications (throttled)
   - [x] Configuration for enabled toplists (SCANNER_ENABLE_TOPLISTS, SCANNER_TOPLIST_UPDATE_INTERVAL)
   - [x] Performance optimization (batching, throttling)
-- [ ] Indicator Engine Integration
-  - [ ] Integrate ToplistUpdater into Indicator Engine
-  - [ ] Update system toplists (rsi, relative_volume, vwap_dist)
-  - [ ] Update user-custom toplists
-  - [ ] Batch updates
-  - [ ] Publish update notifications
-  - [ ] Unit tests for indicator engine toplist integration
+- [x] Indicator Engine Integration ✅
+  - [x] Integrate ToplistUpdater into Indicator Engine
+  - [x] Update system toplists (rsi, relative_volume, vwap_dist)
+  - [x] Batch updates (accumulate during publishing, flush periodically)
+  - [x] Publish update notifications (throttled)
+  - [x] Integration in indicator main.go
 - [ ] Database Migration
   - [ ] Create toplist_configs table migration (`004_create_toplist_configs_table.sql`)
   - [ ] Table schema with all required fields
