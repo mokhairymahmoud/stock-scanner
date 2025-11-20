@@ -1,4 +1,4 @@
-package data
+package wsgateway
 
 import (
 	"net/http"

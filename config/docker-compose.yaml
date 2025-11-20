@@ -6,7 +6,8 @@ services:
       - "6379:6379"
     volumes:
       - redis-data:/data
-    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+      - ${PWD}/config/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -67,8 +68,8 @@ services:
       GF_INSTALL_PLUGINS: ""
     volumes:
       - grafana-data:/var/lib/grafana
-      - ${PWD}/config/grafana/provisioning:/etc/grafana/provisioning
-      - ${PWD}/config/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ${PWD}/config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ${PWD}/config/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
     depends_on:
       - prometheus
       - loki
@@ -309,12 +310,13 @@ services:
   loki:
     image: grafana/loki:latest
     container_name: stock-scanner-loki
+    user: "0:0"  # Run as root for development to avoid volume permission issues
     ports:
       - "3100:3100"
     volumes:
       - ${PWD}/config/loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
       - loki-data:/loki
-    command: -config.file=/etc/loki/local-config.yaml
+    command: -config.file=/etc/loki/local-config.yaml -config.expand-env=true
     healthcheck:
       test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3100/ready || exit 1"]
       interval: 10s

@@ -1,3 +1,9 @@
+// Package data contains component-level E2E tests for the scanner worker.
+//
+// These tests verify the scanner component end-to-end using mocks for dependencies.
+// They test state management, rule evaluation, cooldown, partitioning, and alerts.
+//
+// For full system E2E tests via API, see e2e_api_test.go
 package data
 
 import (

@@ -5,14 +5,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mohamedkhairy/stock-scanner/internal/data"
 	"github.com/mohamedkhairy/stock-scanner/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestMockProvider_Connect(t *testing.T) {
-	provider, err := data.NewMockProvider(data.ProviderConfig{})
+	provider, err := NewMockProvider(ProviderConfig{})
 	require.NoError(t, err)
 
 	// Test initial state
@@ -26,7 +25,7 @@ func TestMockProvider_Connect(t *testing.T) {
 
 	// Test double connect
 	err = provider.Connect(ctx)
-	assert.ErrorIs(t, err, data.ErrProviderAlreadyConnected)
+	assert.ErrorIs(t, err, ErrProviderAlreadyConnected)
 
 	// Test close
 	err = provider.Close()
@@ -35,7 +34,7 @@ func TestMockProvider_Connect(t *testing.T) {
 }
 
 func TestMockProvider_Subscribe(t *testing.T) {
-	provider, err := data.NewMockProvider(data.ProviderConfig{})
+	provider, err := NewMockProvider(ProviderConfig{})
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -43,9 +42,9 @@ func TestMockProvider_Subscribe(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test subscribe before connect
-	disconnectedProvider, _ := data.NewMockProvider(data.ProviderConfig{})
+	disconnectedProvider, _ := NewMockProvider(ProviderConfig{})
 	_, err = disconnectedProvider.Subscribe(ctx, []string{"AAPL"})
-	assert.ErrorIs(t, err, data.ErrProviderNotConnected)
+	assert.ErrorIs(t, err, ErrProviderNotConnected)
 
 	// Test subscribe with valid symbols
 	symbols := []string{"AAPL", "MSFT", "GOOGL"}
@@ -54,7 +53,7 @@ func TestMockProvider_Subscribe(t *testing.T) {
 	assert.NotNil(t, tickChan)
 
 	// Verify subscribed symbols
-	mockProvider := provider.(*data.MockProvider)
+	mockProvider := provider.(*MockProvider)
 	subscribed := mockProvider.GetSubscribedSymbols()
 	assert.Len(t, subscribed, 3)
 	for _, symbol := range symbols {
@@ -63,14 +62,14 @@ func TestMockProvider_Subscribe(t *testing.T) {
 
 	// Test subscribe with empty symbol
 	_, err = provider.Subscribe(ctx, []string{""})
-	assert.ErrorIs(t, err, data.ErrInvalidSymbol)
+	assert.ErrorIs(t, err, ErrInvalidSymbol)
 
 	// Cleanup
 	provider.Close()
 }
 
 func TestMockProvider_Unsubscribe(t *testing.T) {
-	provider, err := data.NewMockProvider(data.ProviderConfig{})
+	provider, err := NewMockProvider(ProviderConfig{})
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -87,7 +86,7 @@ func TestMockProvider_Unsubscribe(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify
-	mockProvider := provider.(*data.MockProvider)
+	mockProvider := provider.(*MockProvider)
 	subscribed := mockProvider.GetSubscribedSymbols()
 	assert.Len(t, subscribed, 2)
 	assert.NotContains(t, subscribed, "AAPL")
@@ -99,7 +98,7 @@ func TestMockProvider_Unsubscribe(t *testing.T) {
 }
 
 func TestMockProvider_TickGeneration(t *testing.T) {
-	provider, err := data.NewMockProvider(data.ProviderConfig{})
+	provider, err := NewMockProvider(ProviderConfig{})
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -155,10 +154,10 @@ func TestMockProvider_TickGeneration(t *testing.T) {
 }
 
 func TestProviderFactory_CreateProvider(t *testing.T) {
-	factory := data.NewProviderFactory()
+	factory := NewProviderFactory()
 
 	// Test creating mock provider
-	config := data.ProviderConfig{
+	config := ProviderConfig{
 		APIKey: "test-key",
 	}
 	provider, err := factory.CreateProvider("mock", config)
@@ -173,18 +172,18 @@ func TestProviderFactory_CreateProvider(t *testing.T) {
 }
 
 func TestProviderFactory_RegisterProvider(t *testing.T) {
-	factory := data.NewProviderFactory()
+	factory := NewProviderFactory()
 
 	// Register a custom provider
-	customFactory := func(config data.ProviderConfig) (data.Provider, error) {
-		return data.NewMockProvider(config)
+	customFactory := func(config ProviderConfig) (Provider, error) {
+		return NewMockProvider(config)
 	}
 
 	err := factory.RegisterProvider("custom", customFactory)
 	require.NoError(t, err)
 
 	// Test creating custom provider
-	config := data.ProviderConfig{}
+	config := ProviderConfig{}
 	provider, err := factory.CreateProvider("custom", config)
 	require.NoError(t, err)
 	assert.NotNil(t, provider)
@@ -196,10 +195,9 @@ func TestProviderFactory_RegisterProvider(t *testing.T) {
 }
 
 func TestProviderFactory_ListProviders(t *testing.T) {
-	factory := data.NewProviderFactory()
+	factory := NewProviderFactory()
 
 	providers := factory.ListProviders()
 	assert.Contains(t, providers, "mock")
 	assert.GreaterOrEqual(t, len(providers), 1)
 }
-

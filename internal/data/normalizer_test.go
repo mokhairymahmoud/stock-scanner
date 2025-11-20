@@ -5,13 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mohamedkhairy/stock-scanner/internal/data"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNormalizer_AlpacaTrade(t *testing.T) {
-	normalizer := data.NewNormalizer("alpaca")
+	normalizer := NewNormalizer("alpaca")
 
 	// Alpaca trade message
 	message := map[string]interface{}{
@@ -37,7 +36,7 @@ func TestNormalizer_AlpacaTrade(t *testing.T) {
 }
 
 func TestNormalizer_AlpacaQuote(t *testing.T) {
-	normalizer := data.NewNormalizer("alpaca")
+	normalizer := NewNormalizer("alpaca")
 
 	// Alpaca quote message
 	message := map[string]interface{}{
@@ -63,7 +62,7 @@ func TestNormalizer_AlpacaQuote(t *testing.T) {
 }
 
 func TestNormalizer_PolygonTrade(t *testing.T) {
-	normalizer := data.NewNormalizer("polygon")
+	normalizer := NewNormalizer("polygon")
 
 	// Polygon trade message
 	message := map[string]interface{}{
@@ -89,7 +88,7 @@ func TestNormalizer_PolygonTrade(t *testing.T) {
 }
 
 func TestNormalizer_MockFormat(t *testing.T) {
-	normalizer := data.NewNormalizer("mock")
+	normalizer := NewNormalizer("mock")
 
 	message := map[string]interface{}{
 		"symbol":    "TSLA",
@@ -113,7 +112,7 @@ func TestNormalizer_MockFormat(t *testing.T) {
 }
 
 func TestNormalizer_GenericFormat(t *testing.T) {
-	normalizer := data.NewNormalizer("unknown")
+	normalizer := NewNormalizer("unknown")
 
 	// Generic format with common field names
 	message := map[string]interface{}{
@@ -136,12 +135,12 @@ func TestNormalizer_GenericFormat(t *testing.T) {
 }
 
 func TestNormalizer_InvalidMessage(t *testing.T) {
-	normalizer := data.NewNormalizer("alpaca")
+	normalizer := NewNormalizer("alpaca")
 
 	// Empty message
 	_, err := normalizer.Normalize([]byte{})
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, data.ErrInvalidMessage)
+	assert.ErrorIs(t, err, ErrInvalidMessage)
 
 	// Invalid JSON
 	_, err = normalizer.Normalize([]byte("not json"))
@@ -158,7 +157,7 @@ func TestNormalizer_InvalidMessage(t *testing.T) {
 }
 
 func TestNormalizer_TimestampNormalization(t *testing.T) {
-	normalizer := data.NewNormalizer("alpaca")
+	normalizer := NewNormalizer("alpaca")
 
 	// Test RFC3339 format
 	message1 := map[string]interface{}{
@@ -189,7 +188,7 @@ func TestNormalizer_TimestampNormalization(t *testing.T) {
 }
 
 func TestNormalizer_PriceVolumeNormalization(t *testing.T) {
-	normalizer := data.NewNormalizer("alpaca")
+	normalizer := NewNormalizer("alpaca")
 
 	// Test string price
 	message1 := map[string]interface{}{
@@ -221,7 +220,7 @@ func TestNormalizer_PriceVolumeNormalization(t *testing.T) {
 }
 
 func TestNormalizeBatch(t *testing.T) {
-	normalizer := data.NewNormalizer("alpaca")
+	normalizer := NewNormalizer("alpaca")
 
 	messages := [][]byte{
 		[]byte(`{"T":"t","S":"AAPL","p":150.0,"s":100,"t":"2023-01-01T12:00:00Z"}`),
@@ -230,7 +229,7 @@ func TestNormalizeBatch(t *testing.T) {
 		[]byte(`{"T":"t","S":"GOOGL","p":140.0,"s":300,"t":"2023-01-01T12:00:00Z"}`),
 	}
 
-	ticks, errors := data.NormalizeBatch(normalizer, messages)
+	ticks, errors := NormalizeBatch(normalizer, messages)
 
 	// Should have 3 successful normalizations and 1 error
 	assert.Len(t, ticks, 3)
@@ -242,10 +241,10 @@ func TestNormalizeBatch(t *testing.T) {
 }
 
 func TestNormalizer_GetProviderName(t *testing.T) {
-	normalizer := data.NewNormalizer("alpaca")
+	normalizer := NewNormalizer("alpaca")
 	assert.Equal(t, "alpaca", normalizer.GetProviderName())
 
-	normalizer2 := data.NewNormalizer("polygon")
+	normalizer2 := NewNormalizer("polygon")
 	assert.Equal(t, "polygon", normalizer2.GetProviderName())
 }
 

@@ -1,11 +1,10 @@
-package data
+package pubsub
 
 import (
 	"testing"
 	"time"
 
 	"github.com/mohamedkhairy/stock-scanner/internal/models"
-	"github.com/mohamedkhairy/stock-scanner/internal/pubsub"
 	"github.com/mohamedkhairy/stock-scanner/internal/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,11 +12,11 @@ import (
 
 func TestStreamPublisher_Publish(t *testing.T) {
 	mockRedis := storage.NewMockRedisClient()
-	config := pubsub.DefaultStreamPublisherConfig("test-stream")
+	config := DefaultStreamPublisherConfig("test-stream")
 	config.BatchSize = 10
 	config.BatchTimeout = 100 * time.Millisecond
 
-	publisher := pubsub.NewStreamPublisher(mockRedis, config)
+	publisher := NewStreamPublisher(mockRedis, config)
 	publisher.Start()
 	defer publisher.Close()
 
@@ -42,11 +41,11 @@ func TestStreamPublisher_Publish(t *testing.T) {
 
 func TestStreamPublisher_BatchFlush(t *testing.T) {
 	mockRedis := storage.NewMockRedisClient()
-	config := pubsub.DefaultStreamPublisherConfig("test-stream")
+	config := DefaultStreamPublisherConfig("test-stream")
 	config.BatchSize = 5
 	config.BatchTimeout = 1 * time.Second
 
-	publisher := pubsub.NewStreamPublisher(mockRedis, config)
+	publisher := NewStreamPublisher(mockRedis, config)
 	publisher.Start()
 	defer publisher.Close()
 
@@ -70,11 +69,11 @@ func TestStreamPublisher_BatchFlush(t *testing.T) {
 
 func TestStreamPublisher_Partitioning(t *testing.T) {
 	mockRedis := storage.NewMockRedisClient()
-	config := pubsub.DefaultStreamPublisherConfig("test-stream")
+	config := DefaultStreamPublisherConfig("test-stream")
 	config.BatchSize = 10
 	config.Partitions = 4
 
-	publisher := pubsub.NewStreamPublisher(mockRedis, config)
+	publisher := NewStreamPublisher(mockRedis, config)
 	publisher.Start()
 	defer publisher.Close()
 
@@ -103,8 +102,8 @@ func TestStreamPublisher_Partitioning(t *testing.T) {
 
 func TestStreamPublisher_InvalidTick(t *testing.T) {
 	mockRedis := storage.NewMockRedisClient()
-	config := pubsub.DefaultStreamPublisherConfig("test-stream")
-	publisher := pubsub.NewStreamPublisher(mockRedis, config)
+	config := DefaultStreamPublisherConfig("test-stream")
+	publisher := NewStreamPublisher(mockRedis, config)
 	publisher.Start()
 	defer publisher.Close()
 
@@ -124,11 +123,11 @@ func TestStreamPublisher_InvalidTick(t *testing.T) {
 
 func TestStreamPublisher_Flush(t *testing.T) {
 	mockRedis := storage.NewMockRedisClient()
-	config := pubsub.DefaultStreamPublisherConfig("test-stream")
+	config := DefaultStreamPublisherConfig("test-stream")
 	config.BatchSize = 100
 	config.BatchTimeout = 10 * time.Second
 
-	publisher := pubsub.NewStreamPublisher(mockRedis, config)
+	publisher := NewStreamPublisher(mockRedis, config)
 	publisher.Start()
 	defer publisher.Close()
 
@@ -157,11 +156,11 @@ func TestStreamPublisher_Flush(t *testing.T) {
 
 func TestStreamPublisher_Close(t *testing.T) {
 	mockRedis := storage.NewMockRedisClient()
-	config := pubsub.DefaultStreamPublisherConfig("test-stream")
+	config := DefaultStreamPublisherConfig("test-stream")
 	config.BatchSize = 100
 	config.BatchTimeout = 10 * time.Second
 
-	publisher := pubsub.NewStreamPublisher(mockRedis, config)
+	publisher := NewStreamPublisher(mockRedis, config)
 	publisher.Start()
 
 	// Publish a tick
@@ -185,10 +184,10 @@ func TestStreamPublisher_Close(t *testing.T) {
 }
 
 func TestStreamPublisher_GetPartitionStreamName(t *testing.T) {
-	config := pubsub.DefaultStreamPublisherConfig("test-stream")
+	config := DefaultStreamPublisherConfig("test-stream")
 	config.Partitions = 4
 
-	publisher := pubsub.NewStreamPublisher(storage.NewMockRedisClient(), config)
+	publisher := NewStreamPublisher(storage.NewMockRedisClient(), config)
 
 	// Test with partitioning
 	assert.Equal(t, "test-stream.p0", publisher.GetPartitionStreamName(0))
@@ -197,9 +196,9 @@ func TestStreamPublisher_GetPartitionStreamName(t *testing.T) {
 	assert.Equal(t, "test-stream.p3", publisher.GetPartitionStreamName(3))
 
 	// Test without partitioning
-	config2 := pubsub.DefaultStreamPublisherConfig("test-stream")
+	config2 := DefaultStreamPublisherConfig("test-stream")
 	config2.Partitions = 0
-	publisher2 := pubsub.NewStreamPublisher(storage.NewMockRedisClient(), config2)
+	publisher2 := NewStreamPublisher(storage.NewMockRedisClient(), config2)
 	assert.Equal(t, "test-stream", publisher2.GetPartitionStreamName(0))
 }
 
@@ -207,12 +206,12 @@ func TestStreamPublisher_RetryOnError(t *testing.T) {
 	mockRedis := storage.NewMockRedisClient()
 	mockRedis.PublishErr = assert.AnError // Simulate error
 
-	config := pubsub.DefaultStreamPublisherConfig("test-stream")
+	config := DefaultStreamPublisherConfig("test-stream")
 	config.BatchSize = 1
 	config.RetryAttempts = 2
 	config.RetryDelay = 10 * time.Millisecond
 
-	publisher := pubsub.NewStreamPublisher(mockRedis, config)
+	publisher := NewStreamPublisher(mockRedis, config)
 	publisher.Start()
 	defer publisher.Close()
 
@@ -232,7 +231,7 @@ func TestStreamPublisher_RetryOnError(t *testing.T) {
 }
 
 func TestDefaultStreamPublisherConfig(t *testing.T) {
-	config := pubsub.DefaultStreamPublisherConfig("test-stream")
+	config := DefaultStreamPublisherConfig("test-stream")
 
 	assert.Equal(t, "test-stream", config.StreamName)
 	assert.Equal(t, 100, config.BatchSize)
