@@ -18,6 +18,7 @@ import (
 	"github.com/mohamedkhairy/stock-scanner/internal/rules"
 	"github.com/mohamedkhairy/stock-scanner/internal/scanner"
 	"github.com/mohamedkhairy/stock-scanner/internal/storage"
+	"github.com/mohamedkhairy/stock-scanner/internal/toplist"
 	"github.com/mohamedkhairy/stock-scanner/pkg/logger"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -125,6 +126,20 @@ func main() {
 	alertEmitterConfig := scanner.DefaultAlertEmitterConfig()
 	alertEmitter := scanner.NewAlertEmitter(redisClient, alertEmitterConfig)
 
+	// Toplist integration (optional)
+	var toplistIntegration *scanner.ToplistIntegration
+	if cfg.Scanner.EnableToplists {
+		toplistUpdater := toplist.NewRedisToplistUpdater(redisClient)
+		toplistIntegration = scanner.NewToplistIntegration(
+			toplistUpdater,
+			cfg.Scanner.EnableToplists,
+			cfg.Scanner.ToplistUpdateInterval,
+		)
+		logger.Info("Toplist integration enabled",
+			logger.Duration("update_interval", cfg.Scanner.ToplistUpdateInterval),
+		)
+	}
+
 	// Initialize scan loop
 	scanLoopConfig := scanner.DefaultScanLoopConfig()
 	scanLoopConfig.ScanInterval = cfg.Scanner.ScanInterval
@@ -136,6 +151,7 @@ func main() {
 		compiler,
 		cooldownTracker,
 		alertEmitter,
+		toplistIntegration,
 	)
 
 	// Initialize rehydrator

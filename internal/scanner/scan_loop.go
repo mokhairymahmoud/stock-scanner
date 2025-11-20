@@ -54,6 +54,7 @@ type ScanLoop struct {
 	compiler       *rules.Compiler
 	cooldownTracker CooldownTracker
 	alertEmitter   AlertEmitter
+	toplistIntegration *ToplistIntegration // Optional toplist integration
 	ctx            context.Context
 	cancel         context.CancelFunc
 	wg             sync.WaitGroup
@@ -96,6 +97,7 @@ func NewScanLoop(
 	compiler *rules.Compiler,
 	cooldownTracker CooldownTracker,
 	alertEmitter AlertEmitter,
+	toplistIntegration *ToplistIntegration, // Optional
 ) *ScanLoop {
 	if stateManager == nil {
 		panic("stateManager cannot be nil")
@@ -123,6 +125,7 @@ func NewScanLoop(
 		compiler:       compiler,
 		cooldownTracker: cooldownTracker,
 		alertEmitter:   alertEmitter,
+		toplistIntegration: toplistIntegration,
 		ctx:            ctx,
 		cancel:         cancel,
 		metricsPool:    metricsPool,
@@ -359,8 +362,33 @@ func (sl *ScanLoop) Scan() {
 			}
 		}
 
+		// Update toplists if integration is enabled
+		if sl.toplistIntegration != nil {
+			// Create a copy of metrics for toplist update (since we'll return metrics to pool)
+			metricsCopy := make(map[string]float64, len(metrics))
+			for k, v := range metrics {
+				metricsCopy[k] = v
+			}
+			if err := sl.toplistIntegration.UpdateToplists(sl.ctx, symbol, metricsCopy); err != nil {
+				logger.Debug("Failed to update toplists",
+					logger.ErrorField(err),
+					logger.String("symbol", symbol),
+				)
+				// Don't fail scan cycle if toplist update fails
+			}
+		}
+
 		// Return metrics map to pool
 		sl.returnMetricsToPool(metrics)
+	}
+
+	// Publish toplist updates after scan cycle
+	if sl.toplistIntegration != nil {
+		if err := sl.toplistIntegration.PublishUpdates(sl.ctx); err != nil {
+			logger.Debug("Failed to publish toplist updates",
+				logger.ErrorField(err),
+			)
+		}
 	}
 
 	// Update statistics
