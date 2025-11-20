@@ -128,28 +128,119 @@ This is a condensed checklist version of the implementation plan for quick progr
 - [x] Unit tests (22 tests, all passing)
 - [ ] API documentation (OpenAPI) - deferred
 
-## Phase 6: Infrastructure & Deployment
+## Phase 6: Infrastructure & Deployment ✅ COMPLETE
 - [x] Dockerfiles for all services ✅
+  - [x] Multi-stage Dockerfile (builds all 7 services)
+  - [x] Alpine base image
+  - [x] Non-root user (appuser)
+  - [x] Health check support
+- [x] Docker Compose updates ✅
+  - [x] All 7 services configured (ingest, bars, indicator, scanner, alert, ws-gateway, api)
+  - [x] All infrastructure services (Redis, TimescaleDB, Prometheus, Grafana, RedisInsight, Loki, Promtail, Jaeger)
+  - [x] Networking configured (stock-scanner-network)
+  - [x] Volumes for persistence
+  - [x] Environment variable management
+  - [x] Redis configuration file support
+  - [x] Loki permission fixes
 - [x] Kubernetes manifests ✅
-  - [x] Deployments ✅
-  - [x] Services ✅
+  - [x] Deployments for all 7 services ✅
+  - [x] Services (ClusterIP, LoadBalancer) ✅
   - [x] ConfigMaps & Secrets ✅
-  - [x] HPA ✅
-  - [x] Ingress ✅
+  - [x] HPA (scanner, alert, ws-gateway, api) ✅
+  - [x] Ingress (API + WebSocket) ✅
+  - [x] Resource limits and requests
+  - [x] Health checks (liveness/readiness)
+  - [x] Rolling update strategy
 - [x] Prometheus configuration ✅
+  - [x] Prometheus service in docker-compose
+  - [x] Scrape configuration (`config/prometheus.yml`)
+  - [x] Service discovery
+  - [x] Metrics endpoints on all services
 - [x] Grafana dashboards ✅
-- [x] Logging setup (Loki/ELK) ✅
+  - [x] Overview dashboard
+  - [x] Data pipeline dashboard
+  - [x] Scanner dashboard
+  - [x] API dashboard
+  - [x] Alerts dashboard
+  - [x] Logs dashboard
+  - [x] Dashboard provisioning
+  - [x] Datasource provisioning (Prometheus, Loki, Jaeger)
+  - [x] Dashboard documentation
+- [x] Logging setup (Loki/Promtail) ✅
+  - [x] Loki service configured
+  - [x] Promtail service configured
+  - [x] Log aggregation from Docker containers
+  - [x] Log retention policies (720h)
+  - [x] Structured log parsing
+  - [x] Loki configuration fixes (deprecated fields removed)
+  - [x] Loki permission fixes
 - [x] Tracing setup (Jaeger) ✅
+  - [x] Jaeger all-in-one service
+  - [x] OTLP support (gRPC + HTTP)
+  - [x] Jaeger UI access
+  - [x] Documentation
 - [x] Database migrations ✅
-- [x] CI/CD pipeline ✅
+  - [x] Migration scripts (3 migrations)
+  - [x] Automatic migration on container startup
+  - [x] TimescaleDB hypertables
+  - [x] Alert history table
+  - [x] Rules table
+- [x] Documentation ✅
+  - [x] Kubernetes deployment guide (`k8s/README.md`)
+  - [x] Configuration reference (`config/env.example`)
+  - [x] Monitoring documentation
+  - [x] Logging documentation
+  - [x] Tracing documentation
+- [ ] CI/CD pipeline ⏳ (structure exists, needs completion)
 
-## Phase 7: Testing & Optimization
-- [ ] End-to-end tests
-- [ ] Load tests (2000, 5000, 10000 symbols)
-- [ ] Stress tests
-- [ ] Chaos engineering tests
-- [ ] Performance optimization
-- [ ] Bug fixes
+## Phase 7: Testing & Optimization ✅ COMPLETE (Test Suites)
+- [x] End-to-end tests ✅
+  - [x] API-based E2E tests (`tests/api_e2e/`) ✅
+  - [x] Component E2E tests (`tests/component_e2e/`) ✅
+  - [x] Pipeline E2E tests (`tests/pipeline_e2e/`) ✅
+  - [x] Docker Compose integration
+  - [x] API test client
+  - [x] WebSocket test client
+- [x] Load tests (2000, 5000, 10000 symbols) ✅
+  - [x] Test suite created (`tests/performance/load_test.go`)
+  - [x] 2000 symbols test
+  - [x] 5000 symbols test
+  - [x] 10000 symbols test
+  - [x] Tick ingestion rate tests
+  - [x] Concurrent update tests
+- [x] Stress tests ✅
+  - [x] Test suite created (`tests/performance/stress_test.go`)
+  - [x] Tick burst scenarios
+  - [x] High rule count scenarios
+  - [x] WebSocket connection stress
+  - [x] Database connection pool exhaustion
+  - [x] Memory pressure tests
+- [x] Chaos engineering tests ✅
+  - [x] Test suite created (`tests/performance/chaos_test.go`)
+  - [x] Service restart scenarios
+  - [x] Network partition tests
+  - [x] Redis failure tests
+  - [x] High latency injection
+  - [x] Concurrent failures
+  - [x] Duplicate alert prevention
+- [x] Stability tests ✅
+  - [x] Test suite created (`tests/performance/stability_test.go`)
+  - [x] Long-running tests (24h configurable)
+  - [x] Memory leak detection
+  - [x] Resource usage monitoring
+  - [x] Alert accuracy over time
+- [x] Test organization ✅
+  - [x] Tests organized into subdirectories
+  - [x] Test documentation (`tests/README.md`)
+  - [x] Test helper utilities
+- [x] Bug fixes ✅
+  - [x] Fixed package declaration issues
+  - [x] Fixed import cycles
+  - [x] Fixed API mismatches
+  - [x] Fixed Docker build errors
+  - [x] Fixed Loki configuration
+  - [x] Fixed test compilation errors
+- [ ] Performance optimization ⏳ (deferred - requires profiling)
 
 ## Phase 8: Production Readiness
 - [ ] Security audit
@@ -183,8 +274,8 @@ This is a condensed checklist version of the implementation plan for quick progr
    - ✅ Phase 3.4: Testing (unit, integration, performance, chaos tests)
 5. **Phase 4** ✅ → Alert delivery
 6. **Phase 5** ✅ → User interface (API)
-7. **Phase 6** → Deployment capability
-8. **Phase 7** → Quality assurance
+7. **Phase 6** ✅ → Deployment capability
+8. **Phase 7** ✅ → Quality assurance (test suites complete)
 9. **Phase 8** → Production launch
 
 ---
