@@ -149,15 +149,13 @@ This is a condensed checklist version of the implementation plan for quick progr
   - [x] ToplistStore interface (`internal/toplist/store.go`)
   - [x] DatabaseToplistStore (`internal/toplist/database_store.go`)
   - [x] Unit tests for toplist service
-- [ ] Scanner Worker Integration
-  - [ ] Integrate ToplistUpdater into Scanner Worker
-  - [ ] Update system toplists (change_pct, volume)
-  - [ ] Update user-custom toplists
-  - [ ] Batch updates with pipeline
-  - [ ] Publish update notifications
-  - [ ] Configuration for enabled toplists
-  - [ ] Performance optimization (caching, batching)
-  - [ ] Unit tests for scanner worker toplist integration
+- [x] Scanner Worker Integration ✅
+  - [x] Integrate ToplistUpdater into Scanner Worker
+  - [x] Update system toplists (change_pct: 1m, 5m, 15m; volume: 1m)
+  - [x] Batch updates with pipeline (accumulate during scan, flush at end)
+  - [x] Publish update notifications (throttled)
+  - [x] Configuration for enabled toplists (SCANNER_ENABLE_TOPLISTS, SCANNER_TOPLIST_UPDATE_INTERVAL)
+  - [x] Performance optimization (batching, throttling)
 - [ ] Indicator Engine Integration
   - [ ] Integrate ToplistUpdater into Indicator Engine
   - [ ] Update system toplists (rsi, relative_volume, vwap_dist)

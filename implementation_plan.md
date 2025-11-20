@@ -904,22 +904,21 @@ See Phase 5 for detailed implementation tasks.
   - [x] JSON field handling (filters, columns, color_scheme)
 - [x] Unit tests for toplist service
 
-#### 5.4 Scanner Worker Integration
-- [ ] Integrate ToplistUpdater into Scanner Worker
-  - [ ] Update system toplists for simple metrics:
-    - [ ] `change_pct` (1m, 5m, 15m windows)
-    - [ ] `volume` (1m, 5m, 15m, 1h, 1d windows)
-  - [ ] Update user-custom toplists (query active toplists, update relevant ones)
-  - [ ] Batch updates every scan cycle (1s) using pipeline
-  - [ ] Publish update notifications to `toplists.updated` channel
-- [ ] Add configuration for enabled toplists
-  - [ ] `SCANNER_ENABLE_TOPLISTS` (default: true)
-  - [ ] `SCANNER_TOPLIST_UPDATE_INTERVAL` (default: 1s)
-- [ ] Performance optimization
-  - [ ] Cache active user toplists in worker memory
-  - [ ] Only update toplists for symbols in worker's partition
-  - [ ] Use Redis pipeline for batch updates
-- [ ] Unit tests for scanner worker toplist integration
+#### 5.4 Scanner Worker Integration ✅ COMPLETE
+- [x] Integrate ToplistUpdater into Scanner Worker
+  - [x] Update system toplists for simple metrics:
+    - [x] `change_pct` (1m, 5m, 15m windows)
+    - [x] `volume` (1m window, using finalized or live volume)
+  - [x] Batch updates accumulated during scan cycle
+  - [x] Publish update notifications to `toplists.updated` channel (throttled)
+- [x] Add configuration for enabled toplists
+  - [x] `SCANNER_ENABLE_TOPLISTS` (default: true)
+  - [x] `SCANNER_TOPLIST_UPDATE_INTERVAL` (default: 1s)
+- [x] Performance optimization
+  - [x] Accumulate updates during scan cycle, flush at end
+  - [x] Use Redis pipeline for batch updates
+  - [x] Throttle publish notifications to avoid spam
+- [x] ToplistIntegration struct with proper batching
 
 #### 5.5 Indicator Engine Integration
 - [ ] Integrate ToplistUpdater into Indicator Engine

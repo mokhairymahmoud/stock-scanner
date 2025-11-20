@@ -114,6 +114,8 @@ type ScannerConfig struct {
 	BufferSize        int
 	RuleStoreType     string        // "memory" or "redis" (default: "memory")
 	RuleReloadInterval time.Duration // How often to reload rules from store (default: 30s)
+	EnableToplists    bool          // Enable toplist updates (default: true)
+	ToplistUpdateInterval time.Duration // Interval for toplist updates (default: 1s)
 }
 
 // WSGatewayConfig holds WebSocket gateway configuration
@@ -231,6 +233,8 @@ func Load() (*Config, error) {
 			BufferSize:        getEnvAsInt("SCANNER_BUFFER_SIZE", 1000),
 			RuleStoreType:     getEnv("SCANNER_RULE_STORE_TYPE", "memory"), // "memory" or "redis"
 			RuleReloadInterval: getEnvAsDuration("SCANNER_RULE_RELOAD_INTERVAL", 30*time.Second),
+			EnableToplists:    getEnvAsBool("SCANNER_ENABLE_TOPLISTS", true),
+			ToplistUpdateInterval: getEnvAsDuration("SCANNER_TOPLIST_UPDATE_INTERVAL", 1*time.Second),
 		},
 		Alert: AlertConfig{
 			Port:              getEnvAsInt("ALERT_PORT", 8092),
@@ -311,6 +315,18 @@ func getEnvAsInt(key string, defaultValue int) int {
 		return defaultValue
 	}
 	return intValue
+}
+
+func getEnvAsBool(key string, defaultValue bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	boolValue, err := strconv.ParseBool(value)
+	if err != nil {
+		return defaultValue
+	}
+	return boolValue
 }
 
 func getEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
