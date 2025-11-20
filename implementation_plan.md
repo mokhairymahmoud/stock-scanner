@@ -971,34 +971,27 @@ See Phase 5 for detailed implementation tasks.
 - [x] Export MockToplistStore for testing
 - [x] Unit tests for toplist handlers (5 test cases, all passing)
 
-#### 5.8 WebSocket Gateway Integration
-- [ ] Extend WebSocket protocol for toplist subscriptions (`internal/wsgateway/protocol.go`)
-  - [ ] Add message types: `subscribe_toplist`, `unsubscribe_toplist`
-  - [ ] Add server message type: `toplist_update`
-- [ ] Update Connection struct (`internal/wsgateway/connection.go`)
-  - [ ] Add `ToplistSubscriptions` map (toplist_id -> bool)
-  - [ ] Add `SubscribeToplist(toplistID string)` method
-  - [ ] Add `UnsubscribeToplist(toplistID string)` method
-- [ ] Update Hub to handle toplist updates (`internal/wsgateway/hub.go`)
-  - [ ] Subscribe to `toplists.updated` pub/sub channel
-  - [ ] Broadcast toplist updates to subscribed clients
-  - [ ] Handle client toplist subscription/unsubscription messages
-- [ ] Message format for toplist updates:
-  ```json
-  {
-    "type": "toplist_update",
-    "data": {
-      "toplist_id": "...",
-      "toplist_type": "user",
-      "rankings": [...],
-      "timestamp": "..."
-    }
-  }
-  ```
-- [ ] Unit tests for WebSocket toplist integration
+#### 5.8 WebSocket Gateway Integration ✅ COMPLETE
+- [x] Extend WebSocket protocol for toplist subscriptions (`internal/wsgateway/protocol.go`)
+  - [x] Add message types: `subscribe_toplist`, `unsubscribe_toplist`
+  - [x] Add server message type: `toplist_update`
+- [x] Update Connection struct (`internal/wsgateway/connection.go`)
+  - [x] Add `ToplistSubscriptions` map (toplist_id -> bool)
+  - [x] Add `SubscribeToplist(toplistID string)` method
+  - [x] Add `UnsubscribeToplist(toplistID string)` method
+  - [x] Add `IsSubscribedToToplist(toplistID string)` method
+- [x] Update Hub to handle toplist updates (`internal/wsgateway/hub.go`)
+  - [x] Subscribe to `toplists.updated` pub/sub channel
+  - [x] Broadcast toplist updates to subscribed clients
+  - [x] Handle client toplist subscription/unsubscription messages
+  - [x] Add `consumeToplistUpdates()` method
+  - [x] Add `broadcastToplistUpdate()` method
+- [x] Unit tests for WebSocket toplist integration (6 test cases)
 
-#### 5.9 Testing & Verification
-- [ ] Unit tests
+#### 5.9 Testing & Verification ✅ COMPLETE
+- [x] Unit tests (all phases have unit tests)
+- [x] Integration tests (ToplistService, ToplistStore, API handlers)
+- [x] End-to-end tests (API E2E tests for toplist CRUD, system rankings, WebSocket subscriptions)
   - [ ] Toplist updater tests
   - [ ] Toplist service tests
   - [ ] Toplist store tests

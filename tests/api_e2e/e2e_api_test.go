@@ -649,6 +649,234 @@ func TestE2E_RuleValidation(t *testing.T) {
 	client.Delete(fmt.Sprintf("/api/v1/rules/%s", createdRule.ID))
 }
 
+// TestE2E_ToplistManagement tests toplist CRUD operations
+func TestE2E_ToplistManagement(t *testing.T) {
+	ensureServicesRunning(t)
+
+	client := NewTestClient(t)
+
+	// Create a user toplist
+	toplistConfig := map[string]interface{}{
+		"name":        "My Custom Toplist",
+		"description": "Test toplist for E2E testing",
+		"metric":      "change_pct",
+		"time_window": "5m",
+		"sort_order":  "desc",
+		"enabled":     true,
+	}
+
+	resp, err := client.Post("/api/v1/toplists/user", toplistConfig)
+	if err != nil {
+		t.Fatalf("Failed to create toplist: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		body := new(bytes.Buffer)
+		body.ReadFrom(resp.Body)
+		t.Fatalf("Create toplist failed with status %d. Body: %s", resp.StatusCode, body.String())
+	}
+
+	var createdToplist map[string]interface{}
+	if err := client.ParseJSONResponse(resp, &createdToplist); err != nil {
+		t.Fatalf("Failed to parse created toplist: %v", err)
+	}
+
+	toplistID, ok := createdToplist["id"].(string)
+	if !ok || toplistID == "" {
+		t.Fatal("Created toplist missing ID")
+	}
+
+	t.Logf("Created toplist with ID: %s", toplistID)
+
+	// Get the toplist
+	resp, err = client.Get(fmt.Sprintf("/api/v1/toplists/user/%s", toplistID))
+	if err != nil {
+		t.Fatalf("Failed to get toplist: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("Get toplist failed with status %d", resp.StatusCode)
+	}
+
+	var retrievedToplist map[string]interface{}
+	if err := client.ParseJSONResponse(resp, &retrievedToplist); err != nil {
+		t.Fatalf("Failed to parse retrieved toplist: %v", err)
+	}
+
+	if retrievedToplist["name"] != "My Custom Toplist" {
+		t.Errorf("Retrieved toplist name = %v, want 'My Custom Toplist'", retrievedToplist["name"])
+	}
+
+	// List user toplists
+	resp, err = client.Get("/api/v1/toplists/user")
+	if err != nil {
+		t.Fatalf("Failed to list toplists: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("List toplists failed with status %d", resp.StatusCode)
+	}
+
+	var toplistsResponse map[string]interface{}
+	if err := client.ParseJSONResponse(resp, &toplistsResponse); err != nil {
+		t.Fatalf("Failed to parse toplists response: %v", err)
+	}
+
+	toplists, ok := toplistsResponse["toplists"].([]interface{})
+	if !ok {
+		t.Fatal("Toplists response missing 'toplists' field")
+	}
+
+	found := false
+	for _, tl := range toplists {
+		tlMap := tl.(map[string]interface{})
+		if tlMap["id"] == toplistID {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		t.Error("Created toplist not found in list")
+	}
+
+	// Update the toplist
+	updateConfig := map[string]interface{}{
+		"name":        "Updated Toplist Name",
+		"description": "Updated description",
+		"metric":      "change_pct",
+		"time_window": "5m",
+		"sort_order":  "desc",
+		"enabled":     true,
+	}
+
+	resp, err = client.Put(fmt.Sprintf("/api/v1/toplists/user/%s", toplistID), updateConfig)
+	if err != nil {
+		t.Fatalf("Failed to update toplist: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("Update toplist failed with status %d", resp.StatusCode)
+	}
+
+	// Delete the toplist
+	resp, err = client.Delete(fmt.Sprintf("/api/v1/toplists/user/%s", toplistID))
+	if err != nil {
+		t.Fatalf("Failed to delete toplist: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("Delete toplist failed with status %d", resp.StatusCode)
+	}
+}
+
+// TestE2E_SystemToplistRankings tests getting system toplist rankings
+func TestE2E_SystemToplistRankings(t *testing.T) {
+	ensureServicesRunning(t)
+
+	client := NewTestClient(t)
+
+	// Get gainers_1m toplist rankings
+	resp, err := client.Get("/api/v1/toplists/system/gainers_1m?limit=10")
+	if err != nil {
+		t.Fatalf("Failed to get system toplist: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body := new(bytes.Buffer)
+		body.ReadFrom(resp.Body)
+		t.Fatalf("Get system toplist failed with status %d. Body: %s", resp.StatusCode, body.String())
+	}
+
+	var response map[string]interface{}
+	if err := client.ParseJSONResponse(resp, &response); err != nil {
+		t.Fatalf("Failed to parse system toplist response: %v", err)
+	}
+
+	rankings, ok := response["rankings"].([]interface{})
+	if !ok {
+		t.Fatal("System toplist response missing 'rankings' field")
+	}
+
+	t.Logf("System toplist returned %d rankings", len(rankings))
+
+	// Verify pagination
+	pagination, ok := response["pagination"].(map[string]interface{})
+	if !ok {
+		t.Fatal("System toplist response missing 'pagination' field")
+	}
+
+	if pagination["limit"] != float64(10) {
+		t.Errorf("Pagination limit = %v, want 10", pagination["limit"])
+	}
+}
+
+// TestE2E_ToplistWebSocketSubscription tests WebSocket subscription to toplist updates
+func TestE2E_ToplistWebSocketSubscription(t *testing.T) {
+	ensureServicesRunning(t)
+
+	// Connect to WebSocket
+	u := url.URL{Scheme: "ws", Host: "localhost:8088", Path: "/ws"}
+	t.Logf("Connecting to %s", u.String())
+
+	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	if err != nil {
+		t.Fatalf("Failed to connect to WebSocket: %v", err)
+	}
+	defer conn.Close()
+
+	// Subscribe to a toplist
+	subscribeMsg := map[string]interface{}{
+		"type":   "subscribe_toplist",
+		"symbol": "gainers_1m", // Reuse symbol field for toplist ID
+	}
+
+	if err := conn.WriteJSON(subscribeMsg); err != nil {
+		t.Fatalf("Failed to send subscribe message: %v", err)
+	}
+
+	// Wait for subscription confirmation
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	var response map[string]interface{}
+	if err := conn.ReadJSON(&response); err != nil {
+		t.Fatalf("Failed to read subscription response: %v", err)
+	}
+
+	if response["type"] != "success" {
+		t.Errorf("Subscription response type = %v, want 'success'", response["type"])
+	}
+
+	t.Logf("Successfully subscribed to toplist: %+v", response)
+
+	// Unsubscribe
+	unsubscribeMsg := map[string]interface{}{
+		"type":   "unsubscribe_toplist",
+		"symbol": "gainers_1m",
+	}
+
+	if err := conn.WriteJSON(unsubscribeMsg); err != nil {
+		t.Fatalf("Failed to send unsubscribe message: %v", err)
+	}
+
+	// Wait for unsubscription confirmation
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	if err := conn.ReadJSON(&response); err != nil {
+		t.Fatalf("Failed to read unsubscription response: %v", err)
+	}
+
+	if response["type"] != "success" {
+		t.Errorf("Unsubscription response type = %v, want 'success'", response["type"])
+	}
+
+	t.Logf("Successfully unsubscribed from toplist: %+v", response)
+}
+
 // ensureServicesRunning checks if services are running and starts them if needed
 func ensureServicesRunning(t *testing.T) {
 	// Check if API service is responding
