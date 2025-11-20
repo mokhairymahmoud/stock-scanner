@@ -129,20 +129,21 @@ This is a condensed checklist version of the implementation plan for quick progr
 - [ ] API documentation (OpenAPI) - deferred
 
 ## Phase 5: Toplists & API ⏳ IN PROGRESS
-- [ ] Toplist Data Models & Types (`internal/models/toplist.go`)
-  - [ ] ToplistConfig struct (user-custom toplist configuration)
-  - [ ] ToplistRanking struct (symbol ranking entry)
-  - [ ] ToplistUpdate struct (real-time update message)
-  - [ ] ToplistFilter struct (filtering criteria)
-  - [ ] Validation methods for all structs
-  - [ ] Toplist constants (metrics, time windows, sort orders, system types)
-  - [ ] Redis key schema definitions
-  - [ ] Unit tests for data models
-- [ ] Toplist Updater Service (`internal/toplist`)
-  - [ ] ToplistUpdater interface (`internal/toplist/updater.go`)
-  - [ ] Redis ZSET updater (`internal/toplist/redis_updater.go`)
-  - [ ] Pub/sub publisher (`internal/toplist/publisher.go`)
-  - [ ] Unit tests for updater service
+- [x] Toplist Data Models & Types (`internal/models/toplist.go`) ✅
+  - [x] ToplistConfig struct (user-custom toplist configuration)
+  - [x] ToplistRanking struct (symbol ranking entry)
+  - [x] ToplistUpdate struct (real-time update message)
+  - [x] ToplistFilter struct (filtering criteria)
+  - [x] Validation methods for all structs
+  - [x] Toplist constants (metrics, time windows, sort orders, system types)
+  - [x] Redis key schema definitions
+  - [x] Unit tests for data models (8 test cases)
+- [x] Toplist Updater Service (`internal/toplist`) ✅
+  - [x] ToplistUpdater interface (`internal/toplist/updater.go`)
+  - [x] Redis ZSET updater (`internal/toplist/redis_updater.go`)
+  - [x] Redis ZSET operations in RedisClient interface
+  - [x] MockRedisClient ZSET support
+  - [x] Unit tests for updater service (6 test cases)
 - [x] Toplist Service (`internal/toplist/service.go`) ✅
   - [x] ToplistService implementation
   - [x] ToplistStore interface (`internal/toplist/store.go`)

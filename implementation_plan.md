@@ -850,40 +850,38 @@ See Phase 5 for detailed implementation tasks.
 
 ### Tasks
 
-#### 5.1 Toplist Data Models & Types
-- [ ] Define Toplist data structures (`internal/models/toplist.go`)
-  - [ ] `ToplistConfig` struct (user-custom toplist configuration)
-  - [ ] `ToplistRanking` struct (symbol ranking entry)
-  - [ ] `ToplistUpdate` struct (real-time update message)
-  - [ ] `ToplistFilter` struct (filtering criteria)
-  - [ ] Validation methods for all structs
-- [ ] Define Toplist constants (`internal/models/toplist.go`)
-  - [ ] Supported metrics enum (ChangePct, Volume, RSI, RelativeVolume, VWAPDist)
-  - [ ] Time window constants (1m, 5m, 15m, 1h, 1d)
-  - [ ] Sort order constants (Asc, Desc)
-  - [ ] System toplist types (gainers_1m, losers_1m, volume_day, etc.)
-- [ ] Redis key schema definitions
-  - [ ] System toplist keys: `toplist:{metric}:{window}`
-  - [ ] User toplist keys: `toplist:user:{user_id}:{toplist_id}`
-  - [ ] Config cache keys: `toplist:config:{toplist_id}`
-- [ ] Unit tests for data models
+#### 5.1 Toplist Data Models & Types ✅ COMPLETE
+- [x] Define Toplist data structures (`internal/models/toplist.go`)
+  - [x] `ToplistConfig` struct (user-custom toplist configuration)
+  - [x] `ToplistRanking` struct (symbol ranking entry)
+  - [x] `ToplistUpdate` struct (real-time update message)
+  - [x] `ToplistFilter` struct (filtering criteria)
+  - [x] Validation methods for all structs
+- [x] Define Toplist constants (`internal/models/toplist.go`)
+  - [x] Supported metrics enum (ChangePct, Volume, RSI, RelativeVolume, VWAPDist)
+  - [x] Time window constants (1m, 5m, 15m, 1h, 1d)
+  - [x] Sort order constants (Asc, Desc)
+  - [x] System toplist types (gainers_1m, losers_1m, volume_day, etc.)
+- [x] Redis key schema definitions
+  - [x] System toplist keys: `toplist:{metric}:{window}`
+  - [x] User toplist keys: `toplist:user:{user_id}:{toplist_id}`
+  - [x] Config cache keys: `toplist:config:{toplist_id}`
+- [x] Unit tests for data models (8 test cases, all passing)
 
-#### 5.2 Toplist Updater Service (`internal/toplist`)
-- [ ] Implement ToplistUpdater interface (`internal/toplist/updater.go`)
-  - [ ] `UpdateSystemToplist(metric string, window string, symbol string, value float64)`
-  - [ ] `UpdateUserToplist(userID string, toplistID string, symbol string, value float64)`
-  - [ ] `BatchUpdate(updates []ToplistUpdate)`
-  - [ ] `PublishUpdate(toplistID string, toplistType string)`
-- [ ] Implement Redis ZSET updater (`internal/toplist/redis_updater.go`)
-  - [ ] Redis client integration
-  - [ ] ZADD operations with pipelining
-  - [ ] TTL management for ZSET keys
-  - [ ] Error handling and retries
-- [ ] Implement pub/sub publisher (`internal/toplist/publisher.go`)
-  - [ ] Publish to `toplists.updated` channel
-  - [ ] Message serialization
-  - [ ] Error handling
-- [ ] Unit tests for updater service
+#### 5.2 Toplist Updater Service (`internal/toplist`) ✅ COMPLETE
+- [x] Implement ToplistUpdater interface (`internal/toplist/updater.go`)
+  - [x] `UpdateSystemToplist(metric string, window string, symbol string, value float64)`
+  - [x] `UpdateUserToplist(userID string, toplistID string, symbol string, value float64)`
+  - [x] `BatchUpdate(updates []ToplistUpdate)`
+  - [x] `PublishUpdate(toplistID string, toplistType string)`
+- [x] Implement Redis ZSET updater (`internal/toplist/redis_updater.go`)
+  - [x] Redis client integration
+  - [x] ZADD operations with pipelining
+  - [x] Error handling and retries
+- [x] Extend RedisClient interface with ZSET operations
+  - [x] ZAdd, ZAddBatch, ZRevRange, ZRem, ZCard, ZScore
+- [x] Extend MockRedisClient with ZSET support
+- [x] Unit tests for updater service (6 test cases, all passing)
 
 #### 5.3 Toplist Service (`internal/toplist/service.go`) ✅ COMPLETE
 - [x] Implement ToplistService
