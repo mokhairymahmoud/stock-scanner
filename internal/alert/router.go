@@ -60,22 +60,11 @@ func (r *Router) RouteAlerts(ctx context.Context, alerts []*models.Alert) error 
 	defer cancel()
 
 	// Prepare batch messages
-	// For batch operations, we need to manually marshal since PublishBatchToStream
-	// expects map[string]interface{} with string values
+	// Pass alert objects directly - Redis will serialize them correctly
 	messages := make([]map[string]interface{}, 0, len(alerts))
 	for _, alert := range alerts {
-		alertJSON, err := json.Marshal(alert)
-		if err != nil {
-			logger.Warn("Failed to marshal alert, skipping",
-				logger.ErrorField(err),
-				logger.String("alert_id", alert.ID),
-			)
-			continue
-		}
-
-		// Store as JSON string - PublishBatchToStream will handle it correctly
 		messages = append(messages, map[string]interface{}{
-			"alert": string(alertJSON),
+			"alert": alert, // Pass object directly, Redis will serialize
 		})
 	}
 
