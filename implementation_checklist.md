@@ -181,14 +181,18 @@ This is a condensed checklist version of the implementation plan for quick progr
   - [x] Authentication and authorization (ownership verification)
   - [x] Integration in API main.go
   - [x] Unit tests for toplist handlers (5 test cases)
-- [ ] WebSocket Gateway Integration
-  - [ ] Extend WebSocket protocol for toplist subscriptions
-  - [ ] Add message types (subscribe_toplist, unsubscribe_toplist, toplist_update)
-  - [ ] Update Connection struct (ToplistSubscriptions map)
-  - [ ] Update Hub to handle toplist updates
-  - [ ] Subscribe to `toplists.updated` pub/sub channel
-  - [ ] Broadcast toplist updates to subscribed clients
-  - [ ] Unit tests for WebSocket toplist integration
+- [x] WebSocket Gateway Integration ✅
+  - [x] Extend WebSocket protocol for toplist subscriptions
+  - [x] Add message types (subscribe_toplist, unsubscribe_toplist, toplist_update)
+  - [x] Update Connection struct (ToplistSubscriptions map)
+  - [x] Update Hub to handle toplist updates
+  - [x] Subscribe to `toplists.updated` pub/sub channel
+  - [x] Broadcast toplist updates to subscribed clients
+  - [x] Unit tests for WebSocket toplist integration (6 test cases)
+- [x] End-to-End Tests ✅
+  - [x] Toplist CRUD operations (create, read, update, delete)
+  - [x] System toplist rankings retrieval
+  - [x] WebSocket subscription to toplist updates
 - [ ] Testing & Verification
   - [ ] Unit tests (updater, service, store, handlers, protocol)
   - [ ] Integration tests (E2E: Worker → Redis ZSET → API)
