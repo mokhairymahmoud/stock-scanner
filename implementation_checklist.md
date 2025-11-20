@@ -167,19 +167,20 @@ This is a condensed checklist version of the implementation plan for quick progr
   - [ ] Table schema with all required fields
   - [ ] Indexes (user_id, enabled, created_at)
   - [ ] Test migration script
-- [ ] API Service Integration (`cmd/api`)
-  - [ ] ToplistHandler (`internal/api/toplist_handler.go`)
-  - [ ] ListToplists - GET /api/v1/toplists
-  - [ ] GetSystemToplist - GET /api/v1/toplists/system/:type
-  - [ ] ListUserToplists - GET /api/v1/toplists/user
-  - [ ] CreateUserToplist - POST /api/v1/toplists/user
-  - [ ] GetUserToplist - GET /api/v1/toplists/user/:id
-  - [ ] UpdateUserToplist - PUT /api/v1/toplists/user/:id
-  - [ ] DeleteUserToplist - DELETE /api/v1/toplists/user/:id
-  - [ ] GetToplistRankings - GET /api/v1/toplists/user/:id/rankings
-  - [ ] Query parameter support (limit, offset, filters)
-  - [ ] Authentication and authorization
-  - [ ] Unit tests for toplist handlers
+- [x] API Service Integration (`cmd/api`) ✅
+  - [x] ToplistHandler (`internal/api/toplist_handler.go`)
+  - [x] ListToplists - GET /api/v1/toplists
+  - [x] GetSystemToplist - GET /api/v1/toplists/system/:type
+  - [x] ListUserToplists - GET /api/v1/toplists/user
+  - [x] CreateUserToplist - POST /api/v1/toplists/user
+  - [x] GetUserToplist - GET /api/v1/toplists/user/:id
+  - [x] UpdateUserToplist - PUT /api/v1/toplists/user/:id
+  - [x] DeleteUserToplist - DELETE /api/v1/toplists/user/:id
+  - [x] GetToplistRankings - GET /api/v1/toplists/user/:id/rankings
+  - [x] Query parameter support (limit, offset, filters)
+  - [x] Authentication and authorization (ownership verification)
+  - [x] Integration in API main.go
+  - [x] Unit tests for toplist handlers (5 test cases)
 - [ ] WebSocket Gateway Integration
   - [ ] Extend WebSocket protocol for toplist subscriptions
   - [ ] Add message types (subscribe_toplist, unsubscribe_toplist, toplist_update)

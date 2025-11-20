@@ -34,12 +34,17 @@ func (s *ToplistService) GetToplistRankings(ctx context.Context, toplistID strin
 		return nil, fmt.Errorf("failed to get toplist config: %w", err)
 	}
 
+	return s.GetRankingsByConfig(ctx, config, limit, offset, filters)
+}
+
+// GetRankingsByConfig retrieves rankings using a config directly (for system toplists)
+func (s *ToplistService) GetRankingsByConfig(ctx context.Context, config *models.ToplistConfig, limit, offset int, filters *models.ToplistFilter) ([]models.ToplistRanking, error) {
 	// Determine Redis key
 	var redisKey string
 	if config.IsSystemToplist() {
 		redisKey = models.GetSystemToplistRedisKey(config.Metric, config.TimeWindow)
 	} else {
-		redisKey = models.GetUserToplistRedisKey(config.UserID, toplistID)
+		redisKey = models.GetUserToplistRedisKey(config.UserID, config.ID)
 	}
 
 	// Get rankings from Redis ZSET
@@ -101,12 +106,17 @@ func (s *ToplistService) GetToplistCount(ctx context.Context, toplistID string) 
 		return 0, fmt.Errorf("failed to get toplist config: %w", err)
 	}
 
+	return s.GetCountByConfig(ctx, config)
+}
+
+// GetCountByConfig returns the count using a config directly (for system toplists)
+func (s *ToplistService) GetCountByConfig(ctx context.Context, config *models.ToplistConfig) (int64, error) {
 	// Determine Redis key
 	var redisKey string
 	if config.IsSystemToplist() {
 		redisKey = models.GetSystemToplistRedisKey(config.Metric, config.TimeWindow)
 	} else {
-		redisKey = models.GetUserToplistRedisKey(config.UserID, toplistID)
+		redisKey = models.GetUserToplistRedisKey(config.UserID, config.ID)
 	}
 
 	// Get count from Redis

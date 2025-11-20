@@ -16,6 +16,7 @@ import (
 	"github.com/mohamedkhairy/stock-scanner/internal/pubsub"
 	"github.com/mohamedkhairy/stock-scanner/internal/rules"
 	"github.com/mohamedkhairy/stock-scanner/internal/storage"
+	"github.com/mohamedkhairy/stock-scanner/internal/toplist"
 	"github.com/mohamedkhairy/stock-scanner/pkg/logger"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -93,11 +94,25 @@ func main() {
 	}
 	defer alertStorage.Close()
 
+	// Initialize toplist store
+	toplistStore, err := toplist.NewDatabaseToplistStore(cfg.Database)
+	if err != nil {
+		logger.Fatal("Failed to initialize toplist store",
+			logger.ErrorField(err),
+		)
+	}
+	defer toplistStore.Close()
+
+	// Initialize toplist service
+	toplistUpdater := toplist.NewRedisToplistUpdater(redisClient)
+	toplistService := toplist.NewToplistService(toplistStore, redisClient, toplistUpdater)
+
 	// Initialize handlers
 	ruleHandler := api.NewRuleHandler(ruleStore, compiler, syncService)
 	alertHandler := api.NewAlertHandler(alertStorage)
 	symbolHandler := api.NewSymbolHandler(cfg.MarketData.Symbols)
 	userHandler := api.NewUserHandler()
+	toplistHandler := api.NewToplistHandler(toplistService, toplistStore)
 
 	// Set up router
 	router := mux.NewRouter()
@@ -124,6 +139,16 @@ func main() {
 	// User management endpoints
 	v1.HandleFunc("/user/profile", userHandler.GetProfile).Methods("GET")
 	v1.HandleFunc("/user/profile", userHandler.UpdateProfile).Methods("PUT")
+
+	// Toplist endpoints
+	v1.HandleFunc("/toplists", toplistHandler.ListToplists).Methods("GET")
+	v1.HandleFunc("/toplists/system/{type}", toplistHandler.GetSystemToplist).Methods("GET")
+	v1.HandleFunc("/toplists/user", toplistHandler.ListUserToplists).Methods("GET")
+	v1.HandleFunc("/toplists/user", toplistHandler.CreateUserToplist).Methods("POST")
+	v1.HandleFunc("/toplists/user/{id}", toplistHandler.GetUserToplist).Methods("GET")
+	v1.HandleFunc("/toplists/user/{id}", toplistHandler.UpdateUserToplist).Methods("PUT")
+	v1.HandleFunc("/toplists/user/{id}", toplistHandler.DeleteUserToplist).Methods("DELETE")
+	v1.HandleFunc("/toplists/user/{id}/rankings", toplistHandler.GetToplistRankings).Methods("GET")
 
 	// Health check endpoints
 	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
