@@ -74,8 +74,22 @@ type RedisClient interface {
 	Publish(ctx context.Context, channel string, message interface{}) error
 	Subscribe(ctx context.Context, channels ...string) (<-chan PubSubMessage, error)
 
+	// Sorted Set (ZSET) operations
+	ZAdd(ctx context.Context, key string, score float64, member string) error
+	ZAddBatch(ctx context.Context, key string, members map[string]float64) error
+	ZRevRange(ctx context.Context, key string, start, stop int64) ([]ZSetMember, error)
+	ZRem(ctx context.Context, key string, members ...string) error
+	ZCard(ctx context.Context, key string) (int64, error)
+	ZScore(ctx context.Context, key string, member string) (float64, error)
+
 	// Close closes the Redis connection
 	Close() error
+}
+
+// ZSetMember represents a member in a sorted set
+type ZSetMember struct {
+	Member string
+	Score  float64
 }
 
 // StreamMessage represents a message from a Redis stream

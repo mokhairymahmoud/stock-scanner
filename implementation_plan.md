@@ -3,6 +3,17 @@
 ## Overview
 This document provides a comprehensive, phase-by-phase implementation plan for the real-time trading scanner system. Each phase builds upon the previous one, with clear dependencies and deliverables.
 
+### Toplist Feature Overview
+The Toplist feature (similar to chartswatcher.com) enables real-time ranking and monitoring of stocks based on various metrics. Key capabilities:
+
+- **System Toplists**: Predefined rankings (Gainers, Losers, Volume Leaders, RSI Extremes, etc.)
+- **User-Custom Toplists**: Users create personalized toplists with custom metrics, filters, and display preferences
+- **Real-Time Updates**: Rankings update every second and delivered via WebSocket
+- **Flexible Filtering**: Filter by volume, price range, exchange, and more
+- **Customizable Display**: Choose columns, color schemes, and sort order
+
+See Phase 5 for detailed implementation tasks.
+
 ---
 
 ## Phase 0: Project Setup & Foundation (Week 1) ✅ COMPLETE
@@ -798,6 +809,231 @@ This document provides a comprehensive, phase-by-phase implementation plan for t
 - [x] Create migration script (`002_create_alert_history_table.sql`)
 
 **4.1.5 Alert Routing** ✅
+- [x] Publish filtered alerts to `alerts.filtered` Redis Stream
+- [x] Metrics for routing latency
+
+#### 4.2 WebSocket Gateway (`cmd/ws_gateway`) ✅ COMPLETE
+- [x] Implement WebSocket server
+- [x] Connection management (upgrader, pool)
+- [x] Authentication (JWT)
+- [x] Subscription management
+- [x] Consume `alerts.filtered` stream
+- [x] Broadcast alerts to clients
+- [x] Heartbeat/ping-pong
+- [x] Metrics (connections, messages)
+
+### Phase 4 Completion Summary
+
+**Status:** ✅ Complete
+
+**Deliverables:**
+- ✅ Alert Service with deduplication, filtering, and persistence
+- ✅ WebSocket Gateway for real-time alert delivery
+- ✅ TimescaleDB storage for alert history
+- ✅ End-to-end alert flow verification
+
+---
+
+## Phase 5: Toplists & API (Week 9) ⏳ IN PROGRESS
+
+### Goals
+- Implement real-time Toplists (System toplists: Gainers, Losers, Volume, RSI, etc.)
+- Implement user-configurable custom toplists
+- Build REST API for toplist management and querying
+- Integrate Toplists into Scanner Worker and Indicator Engine
+- Add WebSocket support for real-time toplist updates
+
+### Dependencies
+- Phase 3 complete (Scanner Worker)
+- Phase 2 complete (Indicator Engine)
+- Phase 4 complete (WebSocket Gateway)
+
+### Tasks
+
+#### 5.1 Toplist Data Models & Types
+- [ ] Define Toplist data structures (`internal/models/toplist.go`)
+  - [ ] `ToplistConfig` struct (user-custom toplist configuration)
+  - [ ] `ToplistRanking` struct (symbol ranking entry)
+  - [ ] `ToplistUpdate` struct (real-time update message)
+  - [ ] `ToplistFilter` struct (filtering criteria)
+  - [ ] Validation methods for all structs
+- [ ] Define Toplist constants (`internal/models/toplist.go`)
+  - [ ] Supported metrics enum (ChangePct, Volume, RSI, RelativeVolume, VWAPDist)
+  - [ ] Time window constants (1m, 5m, 15m, 1h, 1d)
+  - [ ] Sort order constants (Asc, Desc)
+  - [ ] System toplist types (gainers_1m, losers_1m, volume_day, etc.)
+- [ ] Redis key schema definitions
+  - [ ] System toplist keys: `toplist:{metric}:{window}`
+  - [ ] User toplist keys: `toplist:user:{user_id}:{toplist_id}`
+  - [ ] Config cache keys: `toplist:config:{toplist_id}`
+- [ ] Unit tests for data models
+
+#### 5.2 Toplist Updater Service (`internal/toplist`)
+- [ ] Implement ToplistUpdater interface (`internal/toplist/updater.go`)
+  - [ ] `UpdateSystemToplist(metric string, window string, symbol string, value float64)`
+  - [ ] `UpdateUserToplist(userID string, toplistID string, symbol string, value float64)`
+  - [ ] `BatchUpdate(updates []ToplistUpdate)`
+  - [ ] `PublishUpdate(toplistID string, toplistType string)`
+- [ ] Implement Redis ZSET updater (`internal/toplist/redis_updater.go`)
+  - [ ] Redis client integration
+  - [ ] ZADD operations with pipelining
+  - [ ] TTL management for ZSET keys
+  - [ ] Error handling and retries
+- [ ] Implement pub/sub publisher (`internal/toplist/publisher.go`)
+  - [ ] Publish to `toplists.updated` channel
+  - [ ] Message serialization
+  - [ ] Error handling
+- [ ] Unit tests for updater service
+
+#### 5.3 Toplist Service (`internal/toplist/service.go`) ✅ COMPLETE
+- [x] Implement ToplistService
+  - [x] Load user-custom toplist configurations from database
+  - [x] Cache configurations in Redis
+  - [x] Query Redis ZSETs for rankings
+  - [x] Apply filters (min volume, price range, etc.) - structure ready
+  - [x] Compute final rankings with pagination
+  - [x] Process updates and republish for user toplists
+- [x] Implement ToplistStore interface (`internal/toplist/store.go`)
+  - [x] `GetToplistConfig(toplistID string)`
+  - [x] `GetUserToplists(userID string)`
+  - [x] `GetEnabledToplists()` - get all enabled toplists
+  - [x] `CreateToplist(config *ToplistConfig)`
+  - [x] `UpdateToplist(config *ToplistConfig)`
+  - [x] `DeleteToplist(toplistID string)`
+- [x] Implement DatabaseToplistStore (`internal/toplist/database_store.go`)
+  - [x] TimescaleDB integration
+  - [x] CRUD operations for toplist configurations
+  - [x] JSON field handling (filters, columns, color_scheme)
+- [x] Unit tests for toplist service
+
+#### 5.4 Scanner Worker Integration
+- [ ] Integrate ToplistUpdater into Scanner Worker
+  - [ ] Update system toplists for simple metrics:
+    - [ ] `change_pct` (1m, 5m, 15m windows)
+    - [ ] `volume` (1m, 5m, 15m, 1h, 1d windows)
+  - [ ] Update user-custom toplists (query active toplists, update relevant ones)
+  - [ ] Batch updates every scan cycle (1s) using pipeline
+  - [ ] Publish update notifications to `toplists.updated` channel
+- [ ] Add configuration for enabled toplists
+  - [ ] `SCANNER_ENABLE_TOPLISTS` (default: true)
+  - [ ] `SCANNER_TOPLIST_UPDATE_INTERVAL` (default: 1s)
+- [ ] Performance optimization
+  - [ ] Cache active user toplists in worker memory
+  - [ ] Only update toplists for symbols in worker's partition
+  - [ ] Use Redis pipeline for batch updates
+- [ ] Unit tests for scanner worker toplist integration
+
+#### 5.5 Indicator Engine Integration
+- [ ] Integrate ToplistUpdater into Indicator Engine
+  - [ ] Update system toplists for complex metrics:
+    - [ ] `rsi` (RSI extremes)
+    - [ ] `relative_volume` (relative volume leaders)
+    - [ ] `vwap_dist` (VWAP distance)
+  - [ ] Update user-custom toplists that use these metrics
+  - [ ] Batch updates after indicator calculation
+  - [ ] Publish update notifications
+- [ ] Unit tests for indicator engine toplist integration
+
+#### 5.6 Database Migration
+- [ ] Create toplist_configs table migration (`scripts/migrations/004_create_toplist_configs_table.sql`)
+  - [ ] Table schema:
+    - [ ] `id` (VARCHAR, primary key)
+    - [ ] `user_id` (VARCHAR, foreign key to users - nullable for system toplists)
+    - [ ] `name` (VARCHAR)
+    - [ ] `description` (TEXT, nullable)
+    - [ ] `metric` (VARCHAR)
+    - [ ] `time_window` (VARCHAR)
+    - [ ] `sort_order` (VARCHAR)
+    - [ ] `filters` (JSONB)
+    - [ ] `columns` (JSONB)
+    - [ ] `color_scheme` (JSONB, nullable)
+    - [ ] `enabled` (BOOLEAN)
+    - [ ] `created_at` (TIMESTAMPTZ)
+    - [ ] `updated_at` (TIMESTAMPTZ)
+  - [ ] Indexes: `user_id`, `enabled`, `created_at`
+- [ ] Test migration script
+
+#### 5.7 API Service Integration (`cmd/api`)
+- [ ] Implement ToplistHandler (`internal/api/toplist_handler.go`)
+  - [ ] `ListToplists` - GET /api/v1/toplists (system + user)
+  - [ ] `GetSystemToplist` - GET /api/v1/toplists/system/:type
+  - [ ] `ListUserToplists` - GET /api/v1/toplists/user
+  - [ ] `CreateUserToplist` - POST /api/v1/toplists/user
+  - [ ] `GetUserToplist` - GET /api/v1/toplists/user/:id
+  - [ ] `UpdateUserToplist` - PUT /api/v1/toplists/user/:id
+  - [ ] `DeleteUserToplist` - DELETE /api/v1/toplists/user/:id
+  - [ ] `GetToplistRankings` - GET /api/v1/toplists/user/:id/rankings
+- [ ] Query parameter support:
+  - [ ] `limit` (default: 50, max: 500)
+  - [ ] `offset` (default: 0)
+  - [ ] `min_volume` (filter)
+  - [ ] `price_min`, `price_max` (filter)
+- [ ] Response format:
+  ```json
+  {
+    "toplist_id": "...",
+    "name": "...",
+    "rankings": [
+      {"symbol": "AAPL", "rank": 1, "value": 2.5, "metadata": {...}}
+    ],
+    "pagination": {"limit": 50, "offset": 0, "total": 100}
+  }
+  ```
+- [ ] Authentication and authorization (user can only access own toplists)
+- [ ] Unit tests for toplist handlers
+
+#### 5.8 WebSocket Gateway Integration
+- [ ] Extend WebSocket protocol for toplist subscriptions (`internal/wsgateway/protocol.go`)
+  - [ ] Add message types: `subscribe_toplist`, `unsubscribe_toplist`
+  - [ ] Add server message type: `toplist_update`
+- [ ] Update Connection struct (`internal/wsgateway/connection.go`)
+  - [ ] Add `ToplistSubscriptions` map (toplist_id -> bool)
+  - [ ] Add `SubscribeToplist(toplistID string)` method
+  - [ ] Add `UnsubscribeToplist(toplistID string)` method
+- [ ] Update Hub to handle toplist updates (`internal/wsgateway/hub.go`)
+  - [ ] Subscribe to `toplists.updated` pub/sub channel
+  - [ ] Broadcast toplist updates to subscribed clients
+  - [ ] Handle client toplist subscription/unsubscription messages
+- [ ] Message format for toplist updates:
+  ```json
+  {
+    "type": "toplist_update",
+    "data": {
+      "toplist_id": "...",
+      "toplist_type": "user",
+      "rankings": [...],
+      "timestamp": "..."
+    }
+  }
+  ```
+- [ ] Unit tests for WebSocket toplist integration
+
+#### 5.9 Testing & Verification
+- [ ] Unit tests
+  - [ ] Toplist updater tests
+  - [ ] Toplist service tests
+  - [ ] Toplist store tests
+  - [ ] API handler tests
+  - [ ] WebSocket protocol tests
+- [ ] Integration tests
+  - [ ] End-to-end: Scanner Worker -> Redis ZSET -> API query
+  - [ ] End-to-end: Indicator Engine -> Redis ZSET -> API query
+  - [ ] End-to-end: Toplist update -> WebSocket delivery
+  - [ ] User toplist creation -> ranking computation -> API query
+- [ ] Performance tests
+  - [ ] High churn toplist updates (1000+ symbols)
+  - [ ] Batch update performance (pipeline efficiency)
+  - [ ] WebSocket broadcast performance (100+ concurrent clients)
+  - [ ] API query performance (large result sets with pagination)
+- [ ] Load tests
+  - [ ] Multiple workers updating toplists concurrently
+  - [ ] Many user-custom toplists active simultaneously
+  - [ ] High WebSocket connection count with toplist subscriptions
+
+---
+
+## Phase 6: Frontend & Polish (Week 10)
+(Future work)
 - [x] Route to WebSocket gateway (via `alerts.filtered` stream)
 - [ ] Route to email queue (optional, deferred)
 - [ ] Route to push notification queue (optional, deferred)

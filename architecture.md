@@ -3,7 +3,7 @@
 ## Purpose
 This document describes the architecture for the MVP real‑time trading scanner. It is written to guide engineers and Copilot-style assistants implementing the system. The focus is on a production-minded, horizontally scalable, low-latency design that finishes a full scan cycle in <1s.
 
-**Last Updated**: Architecture refined with detailed service boundaries, storage strategy, and communication patterns.
+**Last Updated**: Architecture refined with detailed service boundaries, storage strategy, communication patterns, and Toplist feature.
 
 ---
 
@@ -32,14 +32,26 @@ This document describes the architecture for the MVP real‑time trading scanner
                     |                    |                    |
             [Alert Queue]          [TimescaleDB]      [WebSocket Gateway]
             (Redis Stream)         (alert history)           |
-                                                              |
-                                                         Users (Web / Mobile)
+                                                             |
+                                                        Users (Web / Mobile)
+                                                             ^
+                                                             |
+                                                       [API Service] <--- (Redis ZSETs) --- [Toplists]
+                                                             |
+                                                             v
+                                                    [Toplist Service] (new)
+                                                             |
+                                                             +---> User-configurable toplists
+                                                             +---> Real-time updates via WebSocket
+                                                             +---> Filtering & sorting
+
 ```
 
 ### Additional Services
 
 - **Rule Management Service**: Manages rule storage, validation, and distribution
-- **API Service**: REST API for rule management, alert history, and system management
+- **API Service**: REST API for rule management, alert history, toplist management, and system management
+- **Toplist Service**: Manages user-configurable toplists, real-time ranking, and WebSocket updates
 
 ### Components Explained
 
@@ -73,7 +85,14 @@ This document describes the architecture for the MVP real‑time trading scanner
   - Maintain all required data in local memory (live bar, recent finalized bars, indicators).
   - Execute rule evaluation every scan interval (1s).
   - Per-worker cooldown tracking (in-memory, fast path).
+  - Per-worker cooldown tracking (in-memory, fast path).
   - Publish matches to `alerts` Redis Stream with idempotency key.
+  - **Toplist Updates**:
+    - Updates Redis Sorted Sets (ZSET) for simple metrics (e.g., `toplist:change_1m`).
+    - Updates both system-wide toplists and user-custom toplists.
+    - Uses pipelining to minimize RTT.
+    - Publishes toplist updates to Redis pub/sub channel `toplists.updated` for real-time delivery.
+
 
 - **Alert Service**
   - Consumes alerts from `alerts` Redis Stream.
@@ -86,9 +105,12 @@ This document describes the architecture for the MVP real‑time trading scanner
 
 - **WebSocket Gateway**
   - Consumes filtered alerts from `alerts.filtered` stream.
+  - Consumes toplist updates from `toplists.updated` pub/sub channel.
   - Manages WebSocket connections (connection pool, heartbeat, ping/pong).
   - Authenticates connections via JWT tokens.
   - Broadcasts alerts to subscribed clients.
+  - Broadcasts toplist updates to subscribed clients.
+  - Supports subscriptions to both alerts and toplists.
   - Handles slow clients (buffering, dropping if needed).
   - Metrics for connection count, message delivery latency.
 
@@ -102,10 +124,28 @@ This document describes the architecture for the MVP real‑time trading scanner
 
 - **API Service**
   - REST API with versioning (`/api/v1/...`).
-  - Endpoints: rule management, alert history, symbol info, user profile.
+  - Endpoints: rule management, alert history, symbol info, user profile, toplist management.
+  - Toplist endpoints:
+    - List available toplist types
+    - Get system toplists (gainers, losers, volume, etc.)
+    - Create/update/delete user-custom toplists
+    - Get toplist rankings with filtering and sorting
   - Authentication via JWT tokens.
   - Rate limiting per user.
   - Health checks and metrics.
+
+- **Toplist Service** (New Component)
+  - Manages user-configurable toplists stored in TimescaleDB.
+  - Toplist configurations include:
+    - Metric to rank by (change_pct, volume, rsi, etc.)
+    - Time window (1m, 5m, 15m, 1h, 1d)
+    - Filters (min volume, price range, exchange, etc.)
+    - Sort order (ascending/descending)
+    - Column display preferences
+  - Queries Redis ZSETs for real-time rankings.
+  - Publishes toplist updates to Redis pub/sub for WebSocket delivery.
+  - Supports both system-wide toplists (predefined) and user-custom toplists.
+  - Caches toplist configurations in Redis for fast access.
 
 - **Storage Strategy**
   - **Redis** (Tier 1 - Hot):
@@ -113,12 +153,16 @@ This document describes the architecture for the MVP real‑time trading scanner
     - Indicators: `ind:{symbol}` (TTL: 10 min)
     - Rules cache: `rules:{rule_id}` (TTL: 1 hour)
     - Cooldown state: `cooldown:{user_id}:{rule_id}:{symbol}` (TTL: cooldown duration)
-    - Pub/sub channels: `indicators.updated`, `rules.updated`
+    - Pub/sub channels: `indicators.updated`, `rules.updated`, `toplists.updated`
     - Streams: `ticks`, `bars.finalized`, `alerts`, `alerts.filtered`
+    - **System Toplists**: `toplist:{metric}:{window}` (ZSET, e.g., `toplist:change_pct:1m`)
+    - **User Toplists**: `toplist:user:{user_id}:{toplist_id}` (ZSET, for user-custom toplists)
+    - **Toplist Configs**: `toplist:config:{toplist_id}` (Hash, cached toplist configuration)
   - **TimescaleDB** (Tier 2 - Warm):
     - Finalized 1m bars (hypertable, retention: 1 year)
     - Alert history (retention: 1 year)
     - Rules (persistent storage)
+    - **Toplist configurations** (user-custom toplists, retention: permanent)
     - **Decision**: Single database for MVP (defer ClickHouse to post-MVP).
   - **S3** (Tier 3 - Cold, post-MVP):
     - Long-term archives (> 1 year)
@@ -201,6 +245,29 @@ This document describes the architecture for the MVP real‑time trading scanner
    - Gateway looks up connected clients for the user.
    - Broadcasts alert via WebSocket (JSON message).
    - Tracks delivery metrics (latency, success/failure).
+
+7. **Toplist Maintenance**
+   - **Scanner Workers**:
+     - As they process symbols, they calculate simple metrics (change %, volume).
+     - Periodically (e.g., every 1s or batch), update Redis ZSETs:
+       - System toplists: `ZADD toplist:change_pct:1m <value> <symbol>`
+       - System toplists: `ZADD toplist:volume:day <value> <symbol>`
+       - User-custom toplists: Based on user configurations, update relevant ZSETs
+     - After batch update, publish to `toplists.updated` pub/sub channel.
+   - **Indicator Engine**:
+     - Updates complex metric toplists (e.g., RSI, Relative Volume).
+     - Updates both system and user-custom toplists that use these metrics.
+   - **Toplist Service**:
+     - Loads user-custom toplist configurations from TimescaleDB.
+     - Caches configurations in Redis for fast access.
+     - Queries Redis ZSETs to compute rankings for user toplists.
+     - Applies filters (min volume, price range, etc.) before ranking.
+     - Publishes updates to `toplists.updated` pub/sub channel.
+   - **Expiration**:
+     - Redis keys can have TTL, or workers can remove stale symbols (optional for MVP).
+   - **Consumption**:
+     - API Service queries ZSETs (`ZREVRANGE`) to return top N symbols.
+     - WebSocket Gateway subscribes to `toplists.updated` and broadcasts to clients.
 
 ---
 
@@ -502,6 +569,176 @@ This document describes the architecture for the MVP real‑time trading scanner
 - `GET /health` - Health check
 - `GET /ready` - Readiness probe
 - `GET /metrics` - Prometheus metrics
+
+#### Toplists
+- `GET /api/v1/toplists` - List available toplist types (system + user-custom)
+- `GET /api/v1/toplists/system/:type?limit=10&offset=0` - Get system toplist (e.g., `gainers_1m`, `losers_1m`, `volume_day`)
+- `GET /api/v1/toplists/user` - List user's custom toplists
+- `POST /api/v1/toplists/user` - Create user-custom toplist
+- `GET /api/v1/toplists/user/:id` - Get user-custom toplist details and rankings
+- `PUT /api/v1/toplists/user/:id` - Update user-custom toplist configuration
+- `DELETE /api/v1/toplists/user/:id` - Delete user-custom toplist
+- `GET /api/v1/toplists/user/:id/rankings?limit=50&offset=0` - Get toplist rankings with filters
+
+
+---
+
+## Toplist Feature — Detailed Specification
+
+### Overview
+The Toplist feature provides real-time ranking and monitoring of stocks based on various metrics, similar to chartswatcher.com. Users can view system-wide toplists (predefined) or create custom toplists with their own criteria, filters, and display preferences.
+
+### Key Features
+
+1. **System Toplists** (Predefined)
+   - **Gainers**: Stocks with highest price change % (1m, 5m, 15m, 1h, 1d)
+   - **Losers**: Stocks with lowest price change % (1m, 5m, 15m, 1h, 1d)
+   - **Volume Leaders**: Stocks with highest trading volume (1m, 5m, 15m, 1h, 1d)
+   - **RSI Extremes**: Stocks with highest/lowest RSI values
+   - **Relative Volume**: Stocks with highest relative volume ratios
+   - **VWAP Distance**: Stocks furthest from VWAP (above/below)
+
+2. **User-Custom Toplists**
+   - Users can create custom toplists with:
+     - **Metric**: Any available metric (change_pct, volume, rsi, relative_volume, vwap_dist, etc.)
+     - **Time Window**: 1m, 5m, 15m, 1h, 1d
+     - **Sort Order**: Ascending or descending
+     - **Filters**:
+       - Minimum daily volume threshold
+       - Price range (min/max)
+       - Exchange filter (NYSE, NASDAQ, etc.)
+       - Market cap range
+       - Sector/industry filters (future enhancement)
+     - **Display Columns**: Customizable columns to show (price, change%, volume, RSI, etc.)
+     - **Color Schemes**: Custom color coding for different value ranges
+
+3. **Real-Time Updates**
+   - Toplists update every 1 second (aligned with scan cycle)
+   - Updates delivered via WebSocket for subscribed clients
+   - REST API provides snapshot queries
+   - Efficient updates using Redis ZSETs (sorted sets)
+
+### Data Flow
+
+1. **Toplist Update Generation**
+   - Scanner Workers calculate metrics for assigned symbols
+   - Workers update Redis ZSETs:
+     - System toplists: `toplist:{metric}:{window}` (e.g., `toplist:change_pct:1m`)
+     - User toplists: `toplist:user:{user_id}:{toplist_id}`
+   - Workers publish update notification to `toplists.updated` pub/sub channel
+
+2. **Toplist Service Processing**
+   - Toplist Service subscribes to `toplists.updated` channel
+   - For user-custom toplists:
+     - Loads toplist configuration from cache (Redis) or database
+     - Queries relevant Redis ZSETs
+     - Applies filters (min volume, price range, etc.)
+     - Computes final rankings
+     - Publishes update to `toplists.updated` channel with toplist ID
+
+3. **WebSocket Delivery**
+   - WebSocket Gateway subscribes to `toplists.updated` channel
+   - For each update:
+     - Checks which clients are subscribed to the toplist
+     - Broadcasts update message to subscribed clients
+   - Message format:
+     ```json
+     {
+       "type": "toplist_update",
+       "data": {
+         "toplist_id": "user_123_custom_1",
+         "toplist_type": "user",
+         "rankings": [
+           {"symbol": "AAPL", "rank": 1, "value": 2.5, "metadata": {...}},
+           {"symbol": "MSFT", "rank": 2, "value": 2.3, "metadata": {...}}
+         ],
+         "timestamp": "2024-01-01T12:00:00Z"
+       }
+     }
+     ```
+
+4. **API Queries**
+   - Clients can query toplist rankings via REST API
+   - API queries Redis ZSETs directly (`ZREVRANGE` for top N)
+   - Applies filters server-side
+   - Returns paginated results
+
+### Toplist Configuration Schema
+
+```json
+{
+  "id": "user_123_custom_1",
+  "user_id": "user_123",
+  "name": "High Volume Gainers",
+  "description": "Stocks with >2% gain and >1M volume",
+  "metric": "change_pct",
+  "time_window": "5m",
+  "sort_order": "desc",
+  "filters": {
+    "min_volume": 1000000,
+    "min_change_pct": 2.0,
+    "price_min": 10.0,
+    "price_max": 500.0
+  },
+  "columns": ["symbol", "price", "change_pct", "volume", "rsi"],
+  "color_scheme": {
+    "positive": "#00ff00",
+    "negative": "#ff0000",
+    "neutral": "#ffffff"
+  },
+  "enabled": true,
+  "created_at": "2024-01-01T10:00:00Z",
+  "updated_at": "2024-01-01T10:00:00Z"
+}
+```
+
+### Storage Strategy
+
+- **TimescaleDB**: Stores user-custom toplist configurations (persistent)
+- **Redis**: 
+  - ZSETs for rankings (hot data, TTL: 5 minutes)
+  - Hash for toplist config cache (TTL: 1 hour)
+  - Pub/sub channel for real-time updates
+
+### Performance Considerations
+
+- **Batch Updates**: Workers batch ZSET updates to minimize Redis round-trips
+- **Caching**: Toplist configurations cached in Redis to avoid DB queries
+- **Lazy Evaluation**: User toplists computed on-demand or on update notification
+- **Pagination**: API endpoints support limit/offset for large result sets
+- **WebSocket Throttling**: Updates throttled to max 1 update/second per toplist
+
+### WebSocket Protocol Extensions
+
+New message types for toplist subscriptions:
+
+**Client → Server:**
+```json
+{
+  "type": "subscribe_toplist",
+  "toplist_id": "user_123_custom_1",
+  "toplist_type": "user" // or "system"
+}
+```
+
+```json
+{
+  "type": "unsubscribe_toplist",
+  "toplist_id": "user_123_custom_1"
+}
+```
+
+**Server → Client:**
+```json
+{
+  "type": "toplist_update",
+  "data": {
+    "toplist_id": "user_123_custom_1",
+    "rankings": [...],
+    "timestamp": "..."
+  }
+}
+```
 
 ---
 

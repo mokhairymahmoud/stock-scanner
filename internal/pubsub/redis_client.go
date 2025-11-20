@@ -314,6 +314,72 @@ func (r *RedisClientImpl) Subscribe(ctx context.Context, channels ...string) (<-
 	return messageChan, nil
 }
 
+// ZAdd adds a member to a sorted set
+func (r *RedisClientImpl) ZAdd(ctx context.Context, key string, score float64, member string) error {
+	return r.client.ZAdd(ctx, key, redis.Z{
+		Score:  score,
+		Member: member,
+	}).Err()
+}
+
+// ZAddBatch adds multiple members to a sorted set using a pipeline
+func (r *RedisClientImpl) ZAddBatch(ctx context.Context, key string, members map[string]float64) error {
+	if len(members) == 0 {
+		return nil
+	}
+
+	pipe := r.client.Pipeline()
+	for member, score := range members {
+		pipe.ZAdd(ctx, key, redis.Z{
+			Score:  score,
+			Member: member,
+		})
+	}
+
+	_, err := pipe.Exec(ctx)
+	return err
+}
+
+// ZRevRange returns members of a sorted set in reverse order (highest to lowest)
+func (r *RedisClientImpl) ZRevRange(ctx context.Context, key string, start, stop int64) ([]storage.ZSetMember, error) {
+	results, err := r.client.ZRevRangeWithScores(ctx, key, start, stop).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	members := make([]storage.ZSetMember, len(results))
+	for i, result := range results {
+		members[i] = storage.ZSetMember{
+			Member: result.Member.(string),
+			Score:  result.Score,
+		}
+	}
+
+	return members, nil
+}
+
+// ZRem removes members from a sorted set
+func (r *RedisClientImpl) ZRem(ctx context.Context, key string, members ...string) error {
+	if len(members) == 0 {
+		return nil
+	}
+	return r.client.ZRem(ctx, key, members).Err()
+}
+
+// ZCard returns the number of members in a sorted set
+func (r *RedisClientImpl) ZCard(ctx context.Context, key string) (int64, error) {
+	return r.client.ZCard(ctx, key).Result()
+}
+
+// ZScore returns the score of a member in a sorted set
+func (r *RedisClientImpl) ZScore(ctx context.Context, key string, member string) (float64, error) {
+	score, err := r.client.ZScore(ctx, key, member).Result()
+	if err == redis.Nil {
+		return 0, nil
+	}
+	return score, err
+}
+
 // Close closes the Redis connection
 func (r *RedisClientImpl) Close() error {
 	return r.client.Close()

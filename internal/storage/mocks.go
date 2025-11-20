@@ -137,6 +137,7 @@ func (m *MockAlertStorage) Close() error {
 type MockRedisClient struct {
 	Data          map[string]string
 	Sets          map[string]map[string]bool // Map of set keys to their members
+	ZSets         map[string]map[string]float64 // Map of ZSET keys to member->score mappings
 	StreamData    []StreamMessage
 	PubSubData    []PubSubMessage
 	PublishErr    error
@@ -149,8 +150,9 @@ type MockRedisClient struct {
 
 func NewMockRedisClient() *MockRedisClient {
 	return &MockRedisClient{
-		Data: make(map[string]string),
-		Sets: make(map[string]map[string]bool),
+		Data:  make(map[string]string),
+		Sets:  make(map[string]map[string]bool),
+		ZSets: make(map[string]map[string]float64),
 	}
 }
 
@@ -292,6 +294,115 @@ func (m *MockRedisClient) Subscribe(ctx context.Context, channels ...string) (<-
 	}
 	close(ch)
 	return ch, nil
+}
+
+func (m *MockRedisClient) ZAdd(ctx context.Context, key string, score float64, member string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.ZSets[key] == nil {
+		m.ZSets[key] = make(map[string]float64)
+	}
+	m.ZSets[key][member] = score
+	return nil
+}
+
+func (m *MockRedisClient) ZAddBatch(ctx context.Context, key string, members map[string]float64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.ZSets[key] == nil {
+		m.ZSets[key] = make(map[string]float64)
+	}
+	for member, score := range members {
+		m.ZSets[key][member] = score
+	}
+	return nil
+}
+
+func (m *MockRedisClient) ZRevRange(ctx context.Context, key string, start, stop int64) ([]ZSetMember, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	
+	zset, exists := m.ZSets[key]
+	if !exists {
+		return []ZSetMember{}, nil
+	}
+
+	// Convert map to slice and sort by score (descending)
+	type memberScore struct {
+		member string
+		score  float64
+	}
+	members := make([]memberScore, 0, len(zset))
+	for member, score := range zset {
+		members = append(members, memberScore{member: member, score: score})
+	}
+
+	// Simple sort by score (descending)
+	for i := 0; i < len(members); i++ {
+		for j := i + 1; j < len(members); j++ {
+			if members[i].score < members[j].score {
+				members[i], members[j] = members[j], members[i]
+			}
+		}
+	}
+
+	// Apply start/stop range
+	if start < 0 {
+		start = 0
+	}
+	if stop < 0 || stop >= int64(len(members)) {
+		stop = int64(len(members)) - 1
+	}
+	if start > stop {
+		return []ZSetMember{}, nil
+	}
+
+	result := make([]ZSetMember, 0, stop-start+1)
+	for i := start; i <= stop && i < int64(len(members)); i++ {
+		result = append(result, ZSetMember{
+			Member: members[i].member,
+			Score:  members[i].score,
+		})
+	}
+
+	return result, nil
+}
+
+func (m *MockRedisClient) ZRem(ctx context.Context, key string, members ...string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	zset, exists := m.ZSets[key]
+	if !exists {
+		return nil
+	}
+	for _, member := range members {
+		delete(zset, member)
+	}
+	return nil
+}
+
+func (m *MockRedisClient) ZCard(ctx context.Context, key string) (int64, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	zset, exists := m.ZSets[key]
+	if !exists {
+		return 0, nil
+	}
+	return int64(len(zset)), nil
+}
+
+func (m *MockRedisClient) ZScore(ctx context.Context, key string, member string) (float64, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	zset, exists := m.ZSets[key]
+	if !exists {
+		return 0, nil
+	}
+	score, exists := zset[member]
+	if !exists {
+		return 0, nil
+	}
+	return score, nil
 }
 
 func (m *MockRedisClient) Close() error {

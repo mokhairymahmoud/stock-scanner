@@ -128,6 +128,77 @@ This is a condensed checklist version of the implementation plan for quick progr
 - [x] Unit tests (22 tests, all passing)
 - [ ] API documentation (OpenAPI) - deferred
 
+## Phase 5: Toplists & API ⏳ IN PROGRESS
+- [ ] Toplist Data Models & Types (`internal/models/toplist.go`)
+  - [ ] ToplistConfig struct (user-custom toplist configuration)
+  - [ ] ToplistRanking struct (symbol ranking entry)
+  - [ ] ToplistUpdate struct (real-time update message)
+  - [ ] ToplistFilter struct (filtering criteria)
+  - [ ] Validation methods for all structs
+  - [ ] Toplist constants (metrics, time windows, sort orders, system types)
+  - [ ] Redis key schema definitions
+  - [ ] Unit tests for data models
+- [ ] Toplist Updater Service (`internal/toplist`)
+  - [ ] ToplistUpdater interface (`internal/toplist/updater.go`)
+  - [ ] Redis ZSET updater (`internal/toplist/redis_updater.go`)
+  - [ ] Pub/sub publisher (`internal/toplist/publisher.go`)
+  - [ ] Unit tests for updater service
+- [x] Toplist Service (`internal/toplist/service.go`) ✅
+  - [x] ToplistService implementation
+  - [x] ToplistStore interface (`internal/toplist/store.go`)
+  - [x] DatabaseToplistStore (`internal/toplist/database_store.go`)
+  - [x] Unit tests for toplist service
+- [ ] Scanner Worker Integration
+  - [ ] Integrate ToplistUpdater into Scanner Worker
+  - [ ] Update system toplists (change_pct, volume)
+  - [ ] Update user-custom toplists
+  - [ ] Batch updates with pipeline
+  - [ ] Publish update notifications
+  - [ ] Configuration for enabled toplists
+  - [ ] Performance optimization (caching, batching)
+  - [ ] Unit tests for scanner worker toplist integration
+- [ ] Indicator Engine Integration
+  - [ ] Integrate ToplistUpdater into Indicator Engine
+  - [ ] Update system toplists (rsi, relative_volume, vwap_dist)
+  - [ ] Update user-custom toplists
+  - [ ] Batch updates
+  - [ ] Publish update notifications
+  - [ ] Unit tests for indicator engine toplist integration
+- [ ] Database Migration
+  - [ ] Create toplist_configs table migration (`004_create_toplist_configs_table.sql`)
+  - [ ] Table schema with all required fields
+  - [ ] Indexes (user_id, enabled, created_at)
+  - [ ] Test migration script
+- [ ] API Service Integration (`cmd/api`)
+  - [ ] ToplistHandler (`internal/api/toplist_handler.go`)
+  - [ ] ListToplists - GET /api/v1/toplists
+  - [ ] GetSystemToplist - GET /api/v1/toplists/system/:type
+  - [ ] ListUserToplists - GET /api/v1/toplists/user
+  - [ ] CreateUserToplist - POST /api/v1/toplists/user
+  - [ ] GetUserToplist - GET /api/v1/toplists/user/:id
+  - [ ] UpdateUserToplist - PUT /api/v1/toplists/user/:id
+  - [ ] DeleteUserToplist - DELETE /api/v1/toplists/user/:id
+  - [ ] GetToplistRankings - GET /api/v1/toplists/user/:id/rankings
+  - [ ] Query parameter support (limit, offset, filters)
+  - [ ] Authentication and authorization
+  - [ ] Unit tests for toplist handlers
+- [ ] WebSocket Gateway Integration
+  - [ ] Extend WebSocket protocol for toplist subscriptions
+  - [ ] Add message types (subscribe_toplist, unsubscribe_toplist, toplist_update)
+  - [ ] Update Connection struct (ToplistSubscriptions map)
+  - [ ] Update Hub to handle toplist updates
+  - [ ] Subscribe to `toplists.updated` pub/sub channel
+  - [ ] Broadcast toplist updates to subscribed clients
+  - [ ] Unit tests for WebSocket toplist integration
+- [ ] Testing & Verification
+  - [ ] Unit tests (updater, service, store, handlers, protocol)
+  - [ ] Integration tests (E2E: Worker → Redis ZSET → API)
+  - [ ] Integration tests (E2E: Indicator Engine → Redis ZSET → API)
+  - [ ] Integration tests (E2E: Toplist update → WebSocket delivery)
+  - [ ] Integration tests (User toplist creation → ranking → API query)
+  - [ ] Performance tests (high churn updates, batch performance, WebSocket broadcast)
+  - [ ] Load tests (multiple workers, many toplists, high WebSocket connections)
+
 ## Phase 6: Infrastructure & Deployment ✅ COMPLETE
 - [x] Dockerfiles for all services ✅
   - [x] Multi-stage Dockerfile (builds all 7 services)
@@ -273,7 +344,9 @@ This is a condensed checklist version of the implementation plan for quick progr
    - ✅ Phase 3.3: Scanner Worker Service (main service integration, health checks, metrics, graceful shutdown)
    - ✅ Phase 3.4: Testing (unit, integration, performance, chaos tests)
 5. **Phase 4** ✅ → Alert delivery
-6. **Phase 5** ✅ → User interface (API)
+6. **Phase 5** ⏳ → User interface (API + Toplists)
+   - ✅ REST API Service (rule management, alerts, symbols, users)
+   - ⏳ Toplists (system toplists, user-custom toplists, real-time updates)
 7. **Phase 6** ✅ → Deployment capability
 8. **Phase 7** ✅ → Quality assurance (test suites complete)
 9. **Phase 8** → Production launch
