@@ -2,7 +2,6 @@ package alert
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
