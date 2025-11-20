@@ -29,18 +29,12 @@ func NewRouter(redis storage.RedisClient, filteredStream string, publishTimeout 
 
 // RouteAlert routes a filtered alert to the filtered stream
 func (r *Router) RouteAlert(ctx context.Context, alert *models.Alert) error {
-	// Marshal alert to JSON
-	alertJSON, err := json.Marshal(alert)
-	if err != nil {
-		return fmt.Errorf("failed to marshal alert: %w", err)
-	}
-
 	// Create context with timeout
 	routeCtx, cancel := context.WithTimeout(ctx, r.publishTimeout)
 	defer cancel()
 
-	// Publish to filtered stream
-	err = r.redis.PublishToStream(routeCtx, r.filteredStream, "alert", string(alertJSON))
+	// Publish to filtered stream - pass alert object directly, PublishToStream will handle JSON marshaling
+	err := r.redis.PublishToStream(routeCtx, r.filteredStream, "alert", alert)
 	if err != nil {
 		return fmt.Errorf("failed to publish alert to filtered stream: %w", err)
 	}
@@ -66,6 +60,8 @@ func (r *Router) RouteAlerts(ctx context.Context, alerts []*models.Alert) error 
 	defer cancel()
 
 	// Prepare batch messages
+	// For batch operations, we need to manually marshal since PublishBatchToStream
+	// expects map[string]interface{} with string values
 	messages := make([]map[string]interface{}, 0, len(alerts))
 	for _, alert := range alerts {
 		alertJSON, err := json.Marshal(alert)
@@ -77,6 +73,7 @@ func (r *Router) RouteAlerts(ctx context.Context, alerts []*models.Alert) error 
 			continue
 		}
 
+		// Store as JSON string - PublishBatchToStream will handle it correctly
 		messages = append(messages, map[string]interface{}{
 			"alert": string(alertJSON),
 		})
