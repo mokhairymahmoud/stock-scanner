@@ -20,6 +20,14 @@ test: ## Run all tests
 	@echo "Running tests..."
 	@go test -v ./...
 
+test-performance: ## Run performance tests (with extended timeout)
+	@echo "Running performance tests..."
+	@go test -timeout 10m -v ./tests/performance
+
+test-worker-scaling: ## Run worker scaling tests (with extended timeout for large symbol counts)
+	@echo "Running worker scaling tests..."
+	@go test -timeout 10m -v ./tests/performance -run TestWorkerScaling
+
 test-coverage: ## Run tests with coverage
 	@echo "Running tests with coverage..."
 	@go test -coverprofile=coverage.out ./...
@@ -30,6 +38,14 @@ clean: ## Clean build artifacts
 	@echo "Cleaning..."
 	@rm -rf bin/
 	@rm -f coverage.out coverage.html
+
+clean-db: ## Clean database
+	@echo "Cleaning database..."
+	@docker-compose -f config/docker-compose.yaml down -v
+	@docker volume rm stock-scanner-timescaledb-data
+	@docker volume rm stock-scanner-redis-data
+	@docker volume rm stock-scanner-prometheus-data
+	@docker volume rm stock-scanner-grafana-data
 
 docker-up: ## Start Docker Compose services (infrastructure only)
 	@echo "Starting Docker Compose services (infrastructure)..."
@@ -95,6 +111,12 @@ migrate-up: ## Run database migrations (uses Docker)
 		 echo "Waiting for database to be ready..." && \
 		 sleep 10 && \
 		 docker exec -i stock-scanner-timescaledb psql -U postgres -d stock_scanner < scripts/migrations/003_create_rules_table.sql)
+	@docker exec -i stock-scanner-timescaledb psql -U postgres -d stock_scanner < scripts/migrations/004_create_toplist_configs_table.sql || \
+		(echo "⚠️  TimescaleDB container not running. Starting infrastructure..." && \
+		 docker-compose -f config/docker-compose.yaml up -d timescaledb && \
+		 echo "Waiting for database to be ready..." && \
+		 sleep 10 && \
+		 docker exec -i stock-scanner-timescaledb psql -U postgres -d stock_scanner < scripts/migrations/004_create_toplist_configs_table.sql)
 
 fmt: ## Format code
 	@echo "Formatting code..."

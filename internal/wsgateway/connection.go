@@ -24,6 +24,7 @@ type Connection struct {
 	cancel            context.CancelFunc
 	lastPong          time.Time
 	createdAt         time.Time
+	closed            bool // Track if connection is already closed
 }
 
 // NewConnection creates a new WebSocket connection
@@ -113,11 +114,34 @@ func (c *Connection) GetLastPong() time.Time {
 	return c.lastPong
 }
 
-// Close closes the connection
+// Close closes the connection (idempotent)
 func (c *Connection) Close() {
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return
+	}
+	c.closed = true
+	c.mu.Unlock()
+	
 	c.cancel()
-	close(c.Send)
-	c.Conn.Close()
+	
+	// Safely close the channel only if it's not already closed
+	c.mu.Lock()
+	if c.Send != nil {
+		select {
+		case <-c.Send:
+			// Channel already closed
+		default:
+			close(c.Send)
+		}
+	}
+	c.mu.Unlock()
+	
+	// Close the WebSocket connection (idempotent)
+	if c.Conn != nil {
+		c.Conn.Close()
+	}
 }
 
 // WriteMessage writes a message to the connection
