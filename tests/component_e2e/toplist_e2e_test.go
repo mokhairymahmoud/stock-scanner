@@ -23,8 +23,36 @@ func TestToplistE2E_SystemToplistUpdate(t *testing.T) {
 	// Create toplist updater
 	updater := toplist.NewRedisToplistUpdater(redis)
 
+	// Create mock toplist store
+	store := toplist.NewMockToplistStore()
+
+	// Seed system toplists in the mock store
+	systemToplists := []*models.ToplistConfig{
+		{
+			ID:         "gainers_1m",
+			UserID:     "", // System toplist
+			Name:       "Top Gainers (1m)",
+			Metric:     models.MetricChangePct,
+			TimeWindow: models.Window1m,
+			SortOrder:  models.SortOrderDesc,
+			Enabled:    true,
+		},
+		{
+			ID:         "volume_1m",
+			UserID:     "", // System toplist
+			Name:       "Volume Leaders (1m)",
+			Metric:     models.MetricVolume,
+			TimeWindow: models.Window1m,
+			SortOrder:  models.SortOrderDesc,
+			Enabled:    true,
+		},
+	}
+	for _, tl := range systemToplists {
+		store.CreateToplist(ctx, tl)
+	}
+
 	// Create toplist integration
-	integration := scanner.NewToplistIntegration(updater, true, 1*time.Second)
+	integration := scanner.NewToplistIntegration(updater, store, true, 1*time.Second)
 
 	// Test symbols with different price changes
 	symbols := []struct {
@@ -320,8 +348,27 @@ func TestToplistE2E_ScannerIntegration(t *testing.T) {
 	// Create toplist updater
 	updater := toplist.NewRedisToplistUpdater(redis)
 
+	// Create mock toplist store
+	store := toplist.NewMockToplistStore()
+
+	// Seed system toplists in the mock store
+	systemToplists := []*models.ToplistConfig{
+		{
+			ID:         "gainers_1m",
+			UserID:     "", // System toplist
+			Name:       "Top Gainers (1m)",
+			Metric:     models.MetricChangePct,
+			TimeWindow: models.Window1m,
+			SortOrder:  models.SortOrderDesc,
+			Enabled:    true,
+		},
+	}
+	for _, tl := range systemToplists {
+		store.CreateToplist(ctx, tl)
+	}
+
 	// Create toplist integration
-	integration := scanner.NewToplistIntegration(updater, true, 1*time.Second)
+	integration := scanner.NewToplistIntegration(updater, store, true, 1*time.Second)
 
 	// Create state manager and simulate scanner updates
 	sm := scanner.NewStateManager(200)
@@ -430,7 +477,8 @@ func TestToplistE2E_UpdateNotifications(t *testing.T) {
 	// Step 2: Update toplist and publish notification
 	t.Log("Step 2: Updating toplist and publishing notification...")
 	
-	toplistID := string(models.GetSystemToplistType(models.MetricChangePct, models.Window1m, true))
+	// Use actual system toplist ID from migration
+	toplistID := "gainers_1m"
 	if err := updater.UpdateSystemToplist(ctx, models.MetricChangePct, models.Window1m, "AAPL", 2.5); err != nil {
 		t.Fatalf("Failed to update toplist: %v", err)
 	}

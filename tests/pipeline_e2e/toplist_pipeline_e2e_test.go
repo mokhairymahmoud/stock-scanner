@@ -182,7 +182,8 @@ func TestToplistPipelineE2E_ScannerToRedis(t *testing.T) {
 	// Step 3: Publish update notifications
 	t.Log("Step 3: Publishing toplist update notifications...")
 	
-	toplistID := string(models.GetSystemToplistType(models.MetricChangePct, models.Window1m, true))
+	// Use actual system toplist ID from migration
+	toplistID := "gainers_1m"
 	if err := updater.PublishUpdate(ctx, toplistID, "system"); err != nil {
 		t.Fatalf("Failed to publish update: %v", err)
 	}
@@ -265,7 +266,7 @@ func TestToplistPipelineE2E_RedisToAPI(t *testing.T) {
 	t.Log("Step 2: Creating toplist config...")
 	
 	config := &models.ToplistConfig{
-		ID:         string(models.GetSystemToplistType(models.MetricChangePct, models.Window1m, true)),
+		ID:         "gainers_1m", // System toplist ID from migration
 		UserID:     "", // System toplist
 		Name:       "Gainers 1m",
 		Metric:     models.MetricChangePct,
@@ -399,7 +400,8 @@ func TestToplistPipelineE2E_FullFlow(t *testing.T) {
 	// Step 3: Publish update notifications
 	t.Log("Step 3: Publishing update notifications...")
 	
-	toplistID := string(models.GetSystemToplistType(models.MetricChangePct, models.Window1m, true))
+	// Use actual system toplist ID from migration
+	toplistID := "gainers_1m"
 	if err := updater.PublishUpdate(ctx, toplistID, "system"); err != nil {
 		t.Fatalf("Failed to publish update: %v", err)
 	}
@@ -568,7 +570,8 @@ func TestToplistPipelineE2E_IndicatorEngineIntegration(t *testing.T) {
 	// Step 4: Publish update notification
 	t.Log("Step 4: Publishing RSI toplist update notification...")
 	
-	rsiToplistID := string(models.GetSystemToplistType(models.MetricRSI, models.Window1m, false))
+	// Use actual system toplist ID from migration
+	rsiToplistID := "rsi_low"
 	if err := updater.PublishUpdate(ctx, rsiToplistID, "system"); err != nil {
 		t.Fatalf("Failed to publish RSI update: %v", err)
 	}

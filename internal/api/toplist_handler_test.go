@@ -197,6 +197,20 @@ func TestToplistHandler_GetSystemToplist(t *testing.T) {
 	service := toplist.NewToplistService(mockStore, mockRedis, mockUpdater)
 	handler := NewToplistHandler(service, mockStore)
 
+	// Create a system toplist in the store (user_id = "" for system toplist)
+	systemToplist := &models.ToplistConfig{
+		ID:         "gainers_1m",
+		UserID:     "", // System toplist
+		Name:       "Top Gainers (1m)",
+		Metric:     models.MetricChangePct,
+		TimeWindow: models.Window1m,
+		SortOrder:  models.SortOrderDesc,
+		Enabled:    true,
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+	mockStore.CreateToplist(context.Background(), systemToplist)
+
 	// Add test data to Redis
 	key := models.GetSystemToplistRedisKey(models.MetricChangePct, models.Window1m)
 	mockRedis.ZAdd(context.Background(), key, 2.5, "AAPL")
@@ -204,7 +218,7 @@ func TestToplistHandler_GetSystemToplist(t *testing.T) {
 	mockRedis.ZAdd(context.Background(), key, 3.2, "GOOGL")
 
 	req := httptest.NewRequest("GET", "/api/v1/toplists/system/gainers_1m?limit=10", nil)
-	vars := map[string]string{"type": "gainers_1m"}
+	vars := map[string]string{"id": "gainers_1m"} // Changed from "type" to "id"
 	req = mux.SetURLVars(req, vars)
 	w := httptest.NewRecorder()
 

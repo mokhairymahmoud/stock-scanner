@@ -32,7 +32,7 @@ func TestScannerE2E_CompleteFlow(t *testing.T) {
 
 	// Initialize components
 	config := scanner.DefaultScanLoopConfig()
-	toplistIntegration := scanner.NewToplistIntegration(nil, false, 1*time.Second) // Disabled for this test
+	toplistIntegration := scanner.NewToplistIntegration(nil, nil, false, 1*time.Second) // Disabled for this test
 	scanLoop := scanner.NewScanLoop(config, sm, ruleStore, compiler, cooldownTracker, alertEmitter, toplistIntegration)
 
 	// Create rehydrator
@@ -309,7 +309,7 @@ func TestScannerE2E_MultipleRules(t *testing.T) {
 	cooldownTracker := scanner.NewCooldownTracker(10*time.Second, 5*time.Minute)
 	alertEmitter := newMockAlertEmitterE2E()
 	config := scanner.DefaultScanLoopConfig()
-	toplistIntegration := scanner.NewToplistIntegration(nil, false, 1*time.Second) // Disabled for this test
+	toplistIntegration := scanner.NewToplistIntegration(nil, nil, false, 1*time.Second) // Disabled for this test
 	scanLoop := scanner.NewScanLoop(config, sm, ruleStore, compiler, cooldownTracker, alertEmitter, toplistIntegration)
 
 	// Add multiple rules

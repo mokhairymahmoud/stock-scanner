@@ -35,34 +35,6 @@ const (
 	SortOrderDesc ToplistSortOrder = "desc"
 )
 
-// SystemToplistType represents predefined system toplist types
-// DEPRECATED: System toplists are now stored in the database (user_id = NULL).
-// These constants are kept for backward compatibility and match the IDs used in the migration.
-// Use GetToplistConfig from the database store instead of hardcoded types.
-type SystemToplistType string
-
-const (
-	SystemToplistGainers1m  SystemToplistType = "gainers_1m"
-	SystemToplistGainers5m   SystemToplistType = "gainers_5m"
-	SystemToplistGainers15m  SystemToplistType = "gainers_15m"
-	SystemToplistGainers1h   SystemToplistType = "gainers_1h"
-	SystemToplistGainers1d   SystemToplistType = "gainers_1d"
-	SystemToplistLosers1m    SystemToplistType = "losers_1m"
-	SystemToplistLosers5m    SystemToplistType = "losers_5m"
-	SystemToplistLosers15m   SystemToplistType = "losers_15m"
-	SystemToplistLosers1h    SystemToplistType = "losers_1h"
-	SystemToplistLosers1d    SystemToplistType = "losers_1d"
-	SystemToplistVolume1m    SystemToplistType = "volume_1m"
-	SystemToplistVolume5m   SystemToplistType = "volume_5m"
-	SystemToplistVolume15m   SystemToplistType = "volume_15m"
-	SystemToplistVolume1h    SystemToplistType = "volume_1h"
-	SystemToplistVolume1d    SystemToplistType = "volume_1d"
-	SystemToplistRSIHigh     SystemToplistType = "rsi_high"
-	SystemToplistRSILow      SystemToplistType = "rsi_low"
-	SystemToplistRelVolume   SystemToplistType = "relative_volume"
-	SystemToplistVWAPDistHigh SystemToplistType = "vwap_dist_high"
-	SystemToplistVWAPDistLow  SystemToplistType = "vwap_dist_low"
-)
 
 // ToplistFilter represents filtering criteria for a toplist
 type ToplistFilter struct {
@@ -198,66 +170,6 @@ func GetUserToplistRedisKey(userID string, toplistID string) string {
 	return "toplist:user:" + userID + ":" + toplistID
 }
 
-// GetSystemToplistType returns the system toplist type for a given metric and window
-// DEPRECATED: System toplists are now stored in the database. This function is kept for backward compatibility.
-// Use GetToplistConfig from the database store instead.
-func GetSystemToplistType(metric ToplistMetric, window ToplistTimeWindow, isGainer bool) SystemToplistType {
-	if metric == MetricChangePct {
-		if isGainer {
-			switch window {
-			case Window1m:
-				return SystemToplistGainers1m
-			case Window5m:
-				return SystemToplistGainers5m
-			case Window15m:
-				return SystemToplistGainers15m
-			case Window1h:
-				return SystemToplistGainers1h
-			case Window1d:
-				return SystemToplistGainers1d
-			}
-		} else {
-			switch window {
-			case Window1m:
-				return SystemToplistLosers1m
-			case Window5m:
-				return SystemToplistLosers5m
-			case Window15m:
-				return SystemToplistLosers15m
-			case Window1h:
-				return SystemToplistLosers1h
-			case Window1d:
-				return SystemToplistLosers1d
-			}
-		}
-	} else if metric == MetricVolume {
-		switch window {
-		case Window1m:
-			return SystemToplistVolume1m
-		case Window5m:
-			return SystemToplistVolume5m
-		case Window15m:
-			return SystemToplistVolume15m
-		case Window1h:
-			return SystemToplistVolume1h
-		case Window1d:
-			return SystemToplistVolume1d
-		}
-	} else if metric == MetricRSI {
-		if isGainer {
-			return SystemToplistRSIHigh
-		}
-		return SystemToplistRSILow
-	} else if metric == MetricRelativeVolume {
-		return SystemToplistRelVolume
-	} else if metric == MetricVWAPDist {
-		if isGainer {
-			return SystemToplistVWAPDistHigh
-		}
-		return SystemToplistVWAPDistLow
-	}
-	return ""
-}
 
 // ToplistConfigFromJSON creates a ToplistConfig from JSON bytes
 func ToplistConfigFromJSON(data []byte) (*ToplistConfig, error) {

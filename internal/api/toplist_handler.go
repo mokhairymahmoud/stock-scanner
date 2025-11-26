@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -391,10 +390,4 @@ func parseIntQuery(r *http.Request, key string, defaultValue, min, max int) int 
 	return value
 }
 
-// parseSystemToplistType is deprecated - system toplists are now stored in the database
-// This function is kept for backward compatibility but should not be used
-// TODO: Remove this function after migration is complete
-func parseSystemToplistType(toplistType string) (models.ToplistMetric, models.ToplistTimeWindow, error) {
-	return "", "", fmt.Errorf("parseSystemToplistType is deprecated - system toplists are now stored in the database. Use GetToplistConfig instead")
-}
 

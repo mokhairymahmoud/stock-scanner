@@ -288,80 +288,8 @@ func TestGetUserToplistRedisKey(t *testing.T) {
 }
 
 
-func TestGetSystemToplistType(t *testing.T) {
-	tests := []struct {
-		name      string
-		metric    ToplistMetric
-		window    ToplistTimeWindow
-		isGainer  bool
-		want      SystemToplistType
-	}{
-		{
-			name:     "gainers 1m",
-			metric:   MetricChangePct,
-			window:   Window1m,
-			isGainer: true,
-			want:     SystemToplistGainers1m,
-		},
-		{
-			name:     "losers 5m",
-			metric:   MetricChangePct,
-			window:   Window5m,
-			isGainer: false,
-			want:     SystemToplistLosers5m,
-		},
-		{
-			name:     "volume 1d",
-			metric:   MetricVolume,
-			window:   Window1d,
-			isGainer: false,
-			want:     SystemToplistVolume1d,
-		},
-		{
-			name:     "rsi high",
-			metric:   MetricRSI,
-			window:   Window15m,
-			isGainer: true,
-			want:     SystemToplistRSIHigh,
-		},
-		{
-			name:     "rsi low",
-			metric:   MetricRSI,
-			window:   Window15m,
-			isGainer: false,
-			want:     SystemToplistRSILow,
-		},
-		{
-			name:     "relative volume",
-			metric:   MetricRelativeVolume,
-			window:   Window15m,
-			isGainer: false,
-			want:     SystemToplistRelVolume,
-		},
-		{
-			name:     "vwap dist high",
-			metric:   MetricVWAPDist,
-			window:   Window15m,
-			isGainer: true,
-			want:     SystemToplistVWAPDistHigh,
-		},
-		{
-			name:     "vwap dist low",
-			metric:   MetricVWAPDist,
-			window:   Window15m,
-			isGainer: false,
-			want:     SystemToplistVWAPDistLow,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := GetSystemToplistType(tt.metric, tt.window, tt.isGainer); got != tt.want {
-				t.Errorf("GetSystemToplistType() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
+// TestGetSystemToplistType is removed - system toplists are now stored in the database
+// Use GetToplistConfig from the database store instead
 
 func TestToplistConfig_ToJSON(t *testing.T) {
 	config := &ToplistConfig{

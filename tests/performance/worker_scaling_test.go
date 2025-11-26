@@ -194,7 +194,7 @@ func setupWorker(t *testing.T, workerID int, symbols []string, testRules []*mode
 	compiler := rules.NewCompiler(nil)
 	cooldownTracker := newMockCooldownTracker()
 	alertEmitter := newMockAlertEmitter()
-	toplistIntegration := scanner.NewToplistIntegration(nil, false, 1*time.Second) // Disabled
+	toplistIntegration := scanner.NewToplistIntegration(nil, nil, false, 1*time.Second) // Disabled
 
 	// Add rules
 	for _, rule := range testRules {
@@ -424,7 +424,7 @@ func setupWorkerBenchmark(b *testing.B, workerID int, symbols []string, testRule
 	compiler := rules.NewCompiler(nil)
 	cooldownTracker := newMockCooldownTracker()
 	alertEmitter := newMockAlertEmitter()
-	toplistIntegration := scanner.NewToplistIntegration(nil, false, 1*time.Second)
+	toplistIntegration := scanner.NewToplistIntegration(nil, nil, false, 1*time.Second)
 
 	for _, rule := range testRules {
 		ruleStore.AddRule(rule)
