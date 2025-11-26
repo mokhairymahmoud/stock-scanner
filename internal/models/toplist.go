@@ -195,11 +195,6 @@ func GetUserToplistRedisKey(userID string, toplistID string) string {
 	return "toplist:user:" + userID + ":" + toplistID
 }
 
-// GetToplistConfigRedisKey returns the Redis key for caching a toplist configuration
-func GetToplistConfigRedisKey(toplistID string) string {
-	return "toplist:config:" + toplistID
-}
-
 // GetSystemToplistType returns the system toplist type for a given metric and window
 func GetSystemToplistType(metric ToplistMetric, window ToplistTimeWindow, isGainer bool) SystemToplistType {
 	if metric == MetricChangePct {

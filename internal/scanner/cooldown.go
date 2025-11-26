@@ -11,17 +11,18 @@ import (
 
 // InMemoryCooldownTracker is an in-memory implementation of CooldownTracker
 type InMemoryCooldownTracker struct {
-	mu        sync.RWMutex
-	cooldowns map[string]time.Time // Key: "ruleID|symbol", Value: cooldown end time
+	mu              sync.RWMutex
+	cooldowns       map[string]time.Time // Key: "ruleID|symbol", Value: cooldown end time
+	globalCooldown  time.Duration        // Global cooldown duration for all rules
 	cleanupInterval time.Duration
-	ctx       context.Context
-	cancel    context.CancelFunc
-	wg        sync.WaitGroup
-	running   bool
+	ctx             context.Context
+	cancel          context.CancelFunc
+	wg              sync.WaitGroup
+	running         bool
 }
 
-// NewCooldownTracker creates a new in-memory cooldown tracker
-func NewCooldownTracker(cleanupInterval time.Duration) *InMemoryCooldownTracker {
+// NewCooldownTracker creates a new in-memory cooldown tracker with global cooldown
+func NewCooldownTracker(globalCooldown, cleanupInterval time.Duration) *InMemoryCooldownTracker {
 	if cleanupInterval <= 0 {
 		cleanupInterval = 5 * time.Minute // Default: cleanup every 5 minutes
 	}
@@ -29,10 +30,11 @@ func NewCooldownTracker(cleanupInterval time.Duration) *InMemoryCooldownTracker 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &InMemoryCooldownTracker{
-		cooldowns:      make(map[string]time.Time),
+		cooldowns:       make(map[string]time.Time),
+		globalCooldown:  globalCooldown,
 		cleanupInterval: cleanupInterval,
-		ctx:            ctx,
-		cancel:         cancel,
+		ctx:             ctx,
+		cancel:          cancel,
 	}
 }
 
@@ -88,14 +90,23 @@ func (ct *InMemoryCooldownTracker) IsOnCooldown(ruleID, symbol string) bool {
 	return time.Now().Before(cooldownEnd)
 }
 
-// RecordCooldown records that a rule fired for a symbol (starts cooldown)
+// RecordCooldown records that a rule fired for a symbol (starts cooldown using global cooldown)
 func (ct *InMemoryCooldownTracker) RecordCooldown(ruleID, symbol string, cooldownSeconds int) {
-	if ruleID == "" || symbol == "" || cooldownSeconds <= 0 {
+	if ruleID == "" || symbol == "" {
 		return
 	}
 
+	// Use global cooldown instead of per-rule cooldown
+	ct.mu.RLock()
+	cooldownDuration := ct.globalCooldown
+	ct.mu.RUnlock()
+
+	if cooldownDuration <= 0 {
+		return // No cooldown configured
+	}
+
 	key := ruleID + "|" + symbol
-	cooldownEnd := time.Now().Add(time.Duration(cooldownSeconds) * time.Second)
+	cooldownEnd := time.Now().Add(cooldownDuration)
 
 	ct.mu.Lock()
 	defer ct.mu.Unlock()

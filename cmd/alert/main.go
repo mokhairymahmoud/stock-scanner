@@ -52,7 +52,6 @@ func main() {
 	// Initialize alert service components
 	deduplicator := alert.NewDeduplicator(redisClient, cfg.Alert.DedupeTTL)
 	filter := alert.NewUserFilter()
-	cooldown := alert.NewCooldownManager(redisClient, cfg.Alert.CooldownTTL)
 
 	// Initialize alert persister
 	writeConfig := alert.WriteConfig{
@@ -86,7 +85,6 @@ func main() {
 		redisClient,
 		deduplicator,
 		filter,
-		cooldown,
 		persister,
 		router,
 	)

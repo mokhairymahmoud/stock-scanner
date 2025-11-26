@@ -25,7 +25,7 @@ func TestScannerE2E_CompleteFlow(t *testing.T) {
 	sm := scanner.NewStateManager(200)
 	ruleStore := rules.NewInMemoryRuleStore()
 	compiler := rules.NewCompiler(nil)
-	cooldownTracker := scanner.NewCooldownTracker(5 * time.Minute)
+	cooldownTracker := scanner.NewCooldownTracker(10*time.Second, 5*time.Minute)
 	alertEmitter := newMockAlertEmitterE2E()
 	redis := storage.NewMockRedisClient()
 	barStorage := newMockBarStorageE2E()
@@ -306,7 +306,7 @@ func TestScannerE2E_MultipleRules(t *testing.T) {
 	sm := scanner.NewStateManager(200)
 	ruleStore := rules.NewInMemoryRuleStore()
 	compiler := rules.NewCompiler(nil)
-	cooldownTracker := scanner.NewCooldownTracker(5 * time.Minute)
+	cooldownTracker := scanner.NewCooldownTracker(10*time.Second, 5*time.Minute)
 	alertEmitter := newMockAlertEmitterE2E()
 	config := scanner.DefaultScanLoopConfig()
 	toplistIntegration := scanner.NewToplistIntegration(nil, false, 1*time.Second) // Disabled for this test

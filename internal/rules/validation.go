@@ -15,6 +15,9 @@ func ValidateRule(rule *models.Rule) error {
 	}
 
 	// Additional validations
+	// Note: Cooldown is now global and configured via SCANNER_COOLDOWN_DEFAULT env var
+	// Per-rule cooldown field is deprecated and ignored, but we still validate it's non-negative if provided
+	// This allows backward compatibility with API clients that may still send cooldown in requests
 	if rule.Cooldown < 0 {
 		return fmt.Errorf("cooldown must be non-negative, got %d", rule.Cooldown)
 	}

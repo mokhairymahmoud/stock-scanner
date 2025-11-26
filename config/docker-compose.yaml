@@ -175,6 +175,7 @@ services:
       - ${PWD}/.env
     environment:
       - REDIS_HOST=redis
+      - DB_HOST=timescaledb
     depends_on:
       redis:
         condition: service_healthy

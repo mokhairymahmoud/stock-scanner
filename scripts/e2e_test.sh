@@ -120,13 +120,7 @@ check_data_flow() {
         warn "No indicator keys found"
     fi
     
-    # Check live bars
-    local livebar_count=$(docker exec stock-scanner-redis redis-cli KEYS "livebar:*" 2>/dev/null | wc -l)
-    if [ "$livebar_count" -gt 0 ]; then
-        success "Found $livebar_count live bar keys"
-    else
-        warn "No live bar keys found"
-    fi
+    # Note: Live bar cache has been removed - bars are only published when finalized
 }
 
 # Check scanner status

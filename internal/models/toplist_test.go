@@ -287,27 +287,6 @@ func TestGetUserToplistRedisKey(t *testing.T) {
 	}
 }
 
-func TestGetToplistConfigRedisKey(t *testing.T) {
-	tests := []struct {
-		name      string
-		toplistID string
-		want      string
-	}{
-		{
-			name:      "config key",
-			toplistID: "toplist-123",
-			want:      "toplist:config:toplist-123",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := GetToplistConfigRedisKey(tt.toplistID); got != tt.want {
-				t.Errorf("GetToplistConfigRedisKey() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
 
 func TestGetSystemToplistType(t *testing.T) {
 	tests := []struct {

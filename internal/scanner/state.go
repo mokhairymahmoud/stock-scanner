@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/mohamedkhairy/stock-scanner/internal/models"
+	"github.com/mohamedkhairy/stock-scanner/internal/metrics"
 )
 
 // SymbolState represents the current state of a symbol for scanning
@@ -21,9 +22,10 @@ type SymbolState struct {
 
 // StateManager manages symbol states for the scanner
 type StateManager struct {
-	states     map[string]*SymbolState
-	mu         sync.RWMutex
-	maxFinalBars int // Maximum number of finalized bars to keep per symbol
+	states        map[string]*SymbolState
+	mu            sync.RWMutex
+	maxFinalBars  int // Maximum number of finalized bars to keep per symbol
+	metricRegistry *metrics.Registry // Metric registry for computing metrics
 }
 
 // NewStateManager creates a new state manager
@@ -33,8 +35,9 @@ func NewStateManager(maxFinalBars int) *StateManager {
 	}
 
 	return &StateManager{
-		states:       make(map[string]*SymbolState),
-		maxFinalBars: maxFinalBars,
+		states:         make(map[string]*SymbolState),
+		maxFinalBars:   maxFinalBars,
+		metricRegistry: metrics.NewRegistry(),
 	}
 }
 
@@ -158,6 +161,7 @@ func (sm *StateManager) UpdateIndicators(symbol string, indicators map[string]fl
 }
 
 // GetMetrics returns a snapshot of all metrics for a symbol (for rule evaluation)
+// This method uses the metric registry to compute metrics consistently
 func (sm *StateManager) GetMetrics(symbol string) map[string]float64 {
 	state := sm.GetState(symbol)
 	if state == nil {
@@ -167,72 +171,18 @@ func (sm *StateManager) GetMetrics(symbol string) map[string]float64 {
 	state.mu.RLock()
 	defer state.mu.RUnlock()
 
-	metrics := make(map[string]float64)
-
-	// Copy indicators
-	for key, value := range state.Indicators {
-		metrics[key] = value
+	// Convert state to metric snapshot
+	metricSnapshot := &metrics.SymbolStateSnapshot{
+		Symbol:        symbol,
+		LiveBar:       state.LiveBar,
+		LastFinalBars: state.LastFinalBars,
+		Indicators:    state.Indicators,
+		LastTickTime:  state.LastTickTime,
+		LastUpdate:    state.LastUpdate,
 	}
 
-	// Add computed metrics from live bar
-	if state.LiveBar != nil {
-		// Current price (from live bar close)
-		metrics["price"] = state.LiveBar.Close
-
-		// VWAP from live bar
-		if state.LiveBar.VWAPDenom > 0 {
-			metrics["vwap_live"] = state.LiveBar.VWAPNum / state.LiveBar.VWAPDenom
-		}
-
-		// Volume from live bar
-		metrics["volume_live"] = float64(state.LiveBar.Volume)
-	}
-
-	// Add metrics from last finalized bar if available
-	if len(state.LastFinalBars) > 0 {
-		lastBar := state.LastFinalBars[len(state.LastFinalBars)-1]
-		metrics["close"] = lastBar.Close
-		metrics["open"] = lastBar.Open
-		metrics["high"] = lastBar.High
-		metrics["low"] = lastBar.Low
-		metrics["volume"] = float64(lastBar.Volume)
-		metrics["vwap"] = lastBar.VWAP
-	}
-
-	// Compute price change metrics from finalized bars
-	if len(state.LastFinalBars) >= 2 {
-		currentBar := state.LastFinalBars[len(state.LastFinalBars)-1]
-		prevBar := state.LastFinalBars[len(state.LastFinalBars)-2]
-
-		if prevBar.Close > 0 {
-			changePct := ((currentBar.Close - prevBar.Close) / prevBar.Close) * 100.0
-			metrics["price_change_1m_pct"] = changePct
-		}
-	}
-
-	// Compute price change over 5 minutes (if we have enough bars)
-	if len(state.LastFinalBars) >= 6 {
-		currentBar := state.LastFinalBars[len(state.LastFinalBars)-1]
-		bar5m := state.LastFinalBars[len(state.LastFinalBars)-6]
-
-		if bar5m.Close > 0 {
-			changePct := ((currentBar.Close - bar5m.Close) / bar5m.Close) * 100.0
-			metrics["price_change_5m_pct"] = changePct
-		}
-	}
-
-	// Compute price change over 15 minutes (if we have enough bars)
-	if len(state.LastFinalBars) >= 16 {
-		currentBar := state.LastFinalBars[len(state.LastFinalBars)-1]
-		bar15m := state.LastFinalBars[len(state.LastFinalBars)-16]
-
-		if bar15m.Close > 0 {
-			changePct := ((currentBar.Close - bar15m.Close) / bar15m.Close) * 100.0
-			metrics["price_change_15m_pct"] = changePct
-		}
-	}
-
-	return metrics
+	// Use metric registry to compute all metrics
+	return sm.metricRegistry.ComputeAll(metricSnapshot)
 }
 
 // Snapshot creates a snapshot of all symbol states for scanning

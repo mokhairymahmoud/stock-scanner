@@ -235,7 +235,7 @@ func TestStability_AlertAccuracy(t *testing.T) {
 		t.Skip("Skipping alert accuracy test in short mode")
 	}
 
-	cooldownTracker := scanner.NewCooldownTracker(5 * time.Minute)
+	cooldownTracker := scanner.NewCooldownTracker(10*time.Second, 5*time.Minute)
 	ruleID := "rule-test"
 	// Use very few symbols (3) so we cycle back quickly and hit cooldowns
 	symbols := generateSymbols(3)

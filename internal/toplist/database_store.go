@@ -151,18 +151,19 @@ func (s *DatabaseToplistStore) GetUserToplists(ctx context.Context, userID strin
 	return s.scanToplistConfigs(rows)
 }
 
-// GetEnabledToplists retrieves all enabled toplists for a user (or all system toplists if userID is empty)
+// GetEnabledToplists retrieves all enabled toplists for a user (or all enabled toplists if userID is empty)
+// When userID is empty, returns ALL enabled toplists (both system and user) for processing by scanner/indicator services
 func (s *DatabaseToplistStore) GetEnabledToplists(ctx context.Context, userID string) ([]*models.ToplistConfig, error) {
 	var query string
 	var args []interface{}
 
 	if userID == "" {
-		// Get all enabled system toplists (user_id IS NULL)
+		// Get all enabled toplists (both system and user) for processing by scanner/indicator services
 		query = `
 			SELECT id, user_id, name, description, metric, time_window, sort_order,
 			       filters, columns, color_scheme, enabled, created_at, updated_at
 			FROM toplist_configs
-			WHERE user_id IS NULL AND enabled = true
+			WHERE enabled = true
 			ORDER BY created_at DESC
 		`
 	} else {

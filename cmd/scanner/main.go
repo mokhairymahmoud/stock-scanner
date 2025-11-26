@@ -113,8 +113,8 @@ func main() {
 	// Initialize rule compiler
 	compiler := rules.NewCompiler(nil)
 
-	// Initialize cooldown tracker
-	cooldownTracker := scanner.NewCooldownTracker(5 * time.Minute)
+	// Initialize cooldown tracker with global cooldown from config
+	cooldownTracker := scanner.NewCooldownTracker(cfg.Scanner.CooldownDefault, 5*time.Minute)
 	if err := cooldownTracker.Start(); err != nil {
 		logger.Fatal("Failed to start cooldown tracker",
 			logger.ErrorField(err),
@@ -129,15 +129,28 @@ func main() {
 	// Toplist integration (optional)
 	var toplistIntegration *scanner.ToplistIntegration
 	if cfg.Scanner.EnableToplists {
-		toplistUpdater := toplist.NewRedisToplistUpdater(redisClient)
-		toplistIntegration = scanner.NewToplistIntegration(
-			toplistUpdater,
-			cfg.Scanner.EnableToplists,
-			cfg.Scanner.ToplistUpdateInterval,
-		)
-		logger.Info("Toplist integration enabled",
-			logger.Duration("update_interval", cfg.Scanner.ToplistUpdateInterval),
-		)
+		// Initialize toplist store
+		// Note: Toplist store is optional - if database is unavailable, we'll continue without toplist updates
+		toplistStore, err := toplist.NewDatabaseToplistStore(cfg.Database)
+		if err != nil {
+			logger.Warn("Failed to initialize toplist store, toplist updates will be disabled",
+				logger.ErrorField(err),
+			)
+			// Continue without toplist integration if store initialization fails
+		} else {
+			defer toplistStore.Close()
+
+			toplistUpdater := toplist.NewRedisToplistUpdater(redisClient)
+			toplistIntegration = scanner.NewToplistIntegration(
+				toplistUpdater,
+				toplistStore,
+				cfg.Scanner.EnableToplists,
+				cfg.Scanner.ToplistUpdateInterval,
+			)
+			logger.Info("Toplist integration enabled",
+				logger.Duration("update_interval", cfg.Scanner.ToplistUpdateInterval),
+			)
+		}
 	}
 
 	// Initialize scan loop

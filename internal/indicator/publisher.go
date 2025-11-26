@@ -14,18 +14,23 @@ import (
 
 // Publisher publishes indicators to Redis
 type Publisher struct {
-	redis           storage.RedisClient
-	config          PublisherConfig
-	toplistUpdater  toplist.ToplistUpdater // Optional toplist updater
-	toplistEnabled  bool
-	ctx             context.Context
-	cancel          context.CancelFunc
-	wg              sync.WaitGroup
-	mu              sync.RWMutex
-	running         bool
-	updateChannel   chan string // Channel for symbol updates
-	toplistUpdates  []toplist.ToplistUpdate // Accumulated toplist updates
+	redis              storage.RedisClient
+	config             PublisherConfig
+	toplistUpdater     toplist.ToplistUpdater // Optional toplist updater
+	toplistStore       toplist.ToplistStore   // Toplist store for loading configs
+	mapper             *toplist.MetricMapper  // Metric mapper
+	toplistEnabled     bool
+	ctx                context.Context
+	cancel             context.CancelFunc
+	wg                 sync.WaitGroup
+	mu                 sync.RWMutex
+	running            bool
+	updateChannel      chan string             // Channel for symbol updates
+	toplistUpdates     []toplist.ToplistUpdate // Accumulated toplist updates
 	lastToplistPublish time.Time
+	lastToplistReload  time.Time
+	toplists           []*models.ToplistConfig // Cached enabled toplists
+	reloadInterval     time.Duration           // How often to reload toplists
 }
 
 // PublisherConfig holds configuration for the indicator publisher
@@ -53,13 +58,17 @@ func NewPublisher(redis storage.RedisClient, config PublisherConfig) *Publisher 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Publisher{
-		redis:            redis,
-		config:           config,
-		ctx:              ctx,
-		cancel:           cancel,
-		updateChannel:    make(chan string, config.BatchSize),
-		toplistUpdates:   make([]toplist.ToplistUpdate, 0, 100),
+		redis:              redis,
+		config:             config,
+		ctx:                ctx,
+		cancel:             cancel,
+		updateChannel:      make(chan string, config.BatchSize),
+		toplistUpdates:     make([]toplist.ToplistUpdate, 0, 100),
 		lastToplistPublish: time.Now(),
+		lastToplistReload:  time.Time{}, // Will trigger immediate reload
+		toplists:           make([]*models.ToplistConfig, 0),
+		reloadInterval:     30 * time.Second, // Reload toplists every 30 seconds
+		mapper:             toplist.NewMetricMapper(),
 	}
 }
 
@@ -69,6 +78,13 @@ func (p *Publisher) SetToplistUpdater(updater toplist.ToplistUpdater, enabled bo
 	defer p.mu.Unlock()
 	p.toplistUpdater = updater
 	p.toplistEnabled = enabled
+}
+
+// SetToplistStore sets the toplist store for loading toplist configurations
+func (p *Publisher) SetToplistStore(store toplist.ToplistStore) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.toplistStore = store
 }
 
 // Start starts the publisher
@@ -168,50 +184,80 @@ func (p *Publisher) PublishIndicators(symbol string, indicators map[string]float
 	return nil
 }
 
+// reloadToplists reloads enabled toplists from the store
+func (p *Publisher) reloadToplists(ctx context.Context) error {
+	if p.toplistStore == nil {
+		return nil // No store configured
+	}
+
+	// Load all enabled toplists (system and user)
+	toplists, err := p.toplistStore.GetEnabledToplists(ctx, "")
+	if err != nil {
+		return err
+	}
+
+	p.mu.Lock()
+	p.toplists = toplists
+	p.lastToplistReload = time.Now()
+	p.mu.Unlock()
+
+	logger.Debug("Reloaded toplists in indicator publisher",
+		logger.Int("count", len(toplists)),
+	)
+	return nil
+}
+
 // updateToplists updates toplists with indicator values
 func (p *Publisher) updateToplists(ctx context.Context, symbol string, indicators map[string]float64) {
+	if !p.toplistEnabled || p.toplistUpdater == nil {
+		return
+	}
+
+	// Reload toplists periodically
+	p.mu.RLock()
+	needsReload := time.Since(p.lastToplistReload) >= p.reloadInterval
+	toplists := p.toplists
+	p.mu.RUnlock()
+
+	if needsReload || len(toplists) == 0 {
+		if err := p.reloadToplists(ctx); err != nil {
+			logger.Warn("Failed to reload toplists in indicator publisher",
+				logger.ErrorField(err),
+			)
+			// Continue with cached toplists if reload fails
+		} else {
+			p.mu.RLock()
+			toplists = p.toplists
+			p.mu.RUnlock()
+		}
+	}
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	// Update RSI toplists
-	if rsi, ok := indicators["rsi_14"]; ok {
-		key := models.GetSystemToplistRedisKey(models.MetricRSI, models.Window1m)
-		p.toplistUpdates = append(p.toplistUpdates, toplist.ToplistUpdate{
-			Key:    key,
-			Symbol: symbol,
-			Value:  rsi,
-		})
-	}
-
-	// Update relative volume toplists
-	if relVol, ok := indicators["relative_volume_5m"]; ok {
-		key := models.GetSystemToplistRedisKey(models.MetricRelativeVolume, models.Window5m)
-		p.toplistUpdates = append(p.toplistUpdates, toplist.ToplistUpdate{
-			Key:    key,
-			Symbol: symbol,
-			Value:  relVol,
-		})
-	}
-	if relVol, ok := indicators["relative_volume_15m"]; ok {
-		key := models.GetSystemToplistRedisKey(models.MetricRelativeVolume, models.Window15m)
-		p.toplistUpdates = append(p.toplistUpdates, toplist.ToplistUpdate{
-			Key:    key,
-			Symbol: symbol,
-			Value:  relVol,
-		})
-	}
-
-	// Update VWAP distance toplists (distance from VWAP)
-	if vwap, ok := indicators["vwap_5m"]; ok {
-		if price, ok := indicators["close"]; ok {
-			vwapDist := ((price - vwap) / vwap) * 100.0 // Percentage distance
-			key := models.GetSystemToplistRedisKey(models.MetricVWAPDist, models.Window5m)
-			p.toplistUpdates = append(p.toplistUpdates, toplist.ToplistUpdate{
-				Key:    key,
-				Symbol: symbol,
-				Value:  vwapDist,
-			})
+	// Update all matching toplists dynamically
+	for _, config := range toplists {
+		// Only update toplists that use indicator-based metrics
+		// (RSI, Relative Volume, VWAP Distance)
+		if config.Metric != models.MetricRSI &&
+			config.Metric != models.MetricRelativeVolume &&
+			config.Metric != models.MetricVWAPDist {
+			continue
 		}
+
+		// Get metric value for this toplist config
+		value, found := p.mapper.GetMetricValue(config, indicators)
+		if !found {
+			continue
+		}
+
+		// Get Redis key for this toplist
+		key := p.mapper.GetToplistRedisKey(config)
+		p.toplistUpdates = append(p.toplistUpdates, toplist.ToplistUpdate{
+			Key:    key,
+			Symbol: symbol,
+			Value:  value,
+		})
 	}
 
 	// Flush updates periodically (every update interval)
@@ -230,23 +276,28 @@ func (p *Publisher) updateToplists(ctx context.Context, symbol string, indicator
 					)
 				}
 
-				// Publish update notifications for system toplists
-				systemToplists := []struct {
-					metric models.ToplistMetric
-					window models.ToplistTimeWindow
-				}{
-					{models.MetricRSI, models.Window1m},
-					{models.MetricRelativeVolume, models.Window5m},
-					{models.MetricRelativeVolume, models.Window15m},
-					{models.MetricVWAPDist, models.Window5m},
-				}
+				// Publish update notifications for all updated toplists
+				p.mu.RLock()
+				toplists := p.toplists
+				p.mu.RUnlock()
 
-				for _, tl := range systemToplists {
-					toplistID := string(models.GetSystemToplistType(tl.metric, tl.window, true))
-					if err := p.toplistUpdater.PublishUpdate(ctx, toplistID, "system"); err != nil {
+				for _, config := range toplists {
+					// Only publish for indicator-based metrics
+					if config.Metric != models.MetricRSI &&
+						config.Metric != models.MetricRelativeVolume &&
+						config.Metric != models.MetricVWAPDist {
+						continue
+					}
+
+					toplistType := "user"
+					if config.IsSystemToplist() {
+						toplistType = "system"
+					}
+
+					if err := p.toplistUpdater.PublishUpdate(ctx, config.ID, toplistType); err != nil {
 						logger.Debug("Failed to publish toplist update",
 							logger.ErrorField(err),
-							logger.String("toplist_id", toplistID),
+							logger.String("toplist_id", config.ID),
 						)
 					}
 				}

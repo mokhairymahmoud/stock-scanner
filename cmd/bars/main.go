@@ -94,16 +94,6 @@ func main() {
 		}
 	})
 
-	aggregator.SetOnBarUpdate(func(liveBar *models.LiveBar) {
-		// Publish live bar update to Redis
-		if err := publisher.PublishLiveBar(liveBar); err != nil {
-			logger.Error("Failed to publish live bar",
-				logger.ErrorField(err),
-				logger.String("symbol", liveBar.Symbol),
-			)
-		}
-	})
-
 	// Initialize stream consumer
 	consumerConfig := pubsub.DefaultStreamConsumerConfig(
 		cfg.Ingest.StreamName,

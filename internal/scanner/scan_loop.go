@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/mohamedkhairy/stock-scanner/internal/metrics"
 	"github.com/mohamedkhairy/stock-scanner/internal/models"
 	"github.com/mohamedkhairy/stock-scanner/internal/rules"
 	"github.com/mohamedkhairy/stock-scanner/pkg/logger"
@@ -48,27 +49,30 @@ func DefaultScanLoopConfig() ScanLoopConfig {
 
 // ScanLoop is the core scanning engine that evaluates rules against symbol state
 type ScanLoop struct {
-	config         ScanLoopConfig
-	stateManager   *StateManager
-	ruleStore      rules.RuleStore
-	compiler       *rules.Compiler
-	cooldownTracker CooldownTracker
-	alertEmitter   AlertEmitter
+	config             ScanLoopConfig
+	stateManager       *StateManager
+	ruleStore          rules.RuleStore
+	compiler           *rules.Compiler
+	cooldownTracker    CooldownTracker
+	alertEmitter       AlertEmitter
 	toplistIntegration *ToplistIntegration // Optional toplist integration
-	ctx            context.Context
-	cancel         context.CancelFunc
-	wg             sync.WaitGroup
-	mu             sync.RWMutex
-	running        bool
-	stats          ScanLoopStats
+	ctx                context.Context
+	cancel             context.CancelFunc
+	wg                 sync.WaitGroup
+	mu                 sync.RWMutex
+	running            bool
+	stats              ScanLoopStats
 
 	// Performance optimization: pool for metrics maps
 	metricsPool *sync.Pool
 
+	// Metric registry for computing metrics
+	metricRegistry *metrics.Registry
+
 	// Compiled rules cache (updated when rules change)
 	compiledRules map[string]rules.CompiledRule
 	rulesMu       sync.RWMutex
-	
+
 	// Rule reload tracking
 	lastRuleReload time.Time
 	lastReloadMu   sync.RWMutex
@@ -76,17 +80,17 @@ type ScanLoop struct {
 
 // ScanLoopStats holds statistics about the scan loop
 type ScanLoopStats struct {
-	ScanCycles        int64
-	SymbolsScanned    int64
-	RulesEvaluated    int64
-	RulesMatched      int64
-	AlertsEmitted     int64
-	ScanCycleTime     time.Duration // Last scan cycle time
-	MaxScanCycleTime  time.Duration // Maximum scan cycle time observed
-	MinScanCycleTime  time.Duration // Minimum scan cycle time observed
-	AvgScanCycleTime  time.Duration // Average scan cycle time
-	ScanCycleTimeSum  time.Duration // Sum of all scan cycle times (for average calculation)
-	mu                sync.RWMutex
+	ScanCycles       int64
+	SymbolsScanned   int64
+	RulesEvaluated   int64
+	RulesMatched     int64
+	AlertsEmitted    int64
+	ScanCycleTime    time.Duration // Last scan cycle time
+	MaxScanCycleTime time.Duration // Maximum scan cycle time observed
+	MinScanCycleTime time.Duration // Minimum scan cycle time observed
+	AvgScanCycleTime time.Duration // Average scan cycle time
+	ScanCycleTimeSum time.Duration // Sum of all scan cycle times (for average calculation)
+	mu               sync.RWMutex
 }
 
 // NewScanLoop creates a new scan loop
@@ -118,19 +122,23 @@ func NewScanLoop(
 		},
 	}
 
+	// Initialize metric registry
+	metricRegistry := metrics.NewRegistry()
+
 	return &ScanLoop{
-		config:         config,
-		stateManager:   stateManager,
-		ruleStore:      ruleStore,
-		compiler:       compiler,
-		cooldownTracker: cooldownTracker,
-		alertEmitter:   alertEmitter,
+		config:             config,
+		stateManager:       stateManager,
+		ruleStore:          ruleStore,
+		compiler:           compiler,
+		cooldownTracker:    cooldownTracker,
+		alertEmitter:       alertEmitter,
 		toplistIntegration: toplistIntegration,
-		ctx:            ctx,
-		cancel:         cancel,
-		metricsPool:    metricsPool,
-		compiledRules:  make(map[string]rules.CompiledRule),
-		lastRuleReload: time.Now(),
+		ctx:                ctx,
+		cancel:             cancel,
+		metricsPool:        metricsPool,
+		metricRegistry:     metricRegistry,
+		compiledRules:      make(map[string]rules.CompiledRule),
+		lastRuleReload:     time.Now(),
 		stats: ScanLoopStats{
 			MinScanCycleTime: time.Hour, // Initialize to large value
 		},
@@ -200,7 +208,7 @@ func (sl *ScanLoop) GetStats() ScanLoopStats {
 	// Return a copy
 	return ScanLoopStats{
 		ScanCycles:       sl.stats.ScanCycles,
-		SymbolsScanned:    sl.stats.SymbolsScanned,
+		SymbolsScanned:   sl.stats.SymbolsScanned,
 		RulesEvaluated:   sl.stats.RulesEvaluated,
 		RulesMatched:     sl.stats.RulesMatched,
 		AlertsEmitted:    sl.stats.AlertsEmitted,
@@ -280,10 +288,6 @@ func (sl *ScanLoop) Scan() {
 	compiledRules := sl.compiledRules
 	sl.rulesMu.RUnlock()
 
-	if len(compiledRules) == 0 {
-		return // No rules to evaluate
-	}
-
 	// Scan each symbol
 	symbolsScanned := int64(0)
 	rulesEvaluated := int64(0)
@@ -301,7 +305,7 @@ func (sl *ScanLoop) Scan() {
 		// Get metrics for this symbol (computed from snapshot, no lock needed)
 		metrics := sl.getMetricsFromSnapshot(symbolState)
 
-		// Evaluate each rule
+		// Evaluate each rule (if any rules exist)
 		for ruleID, compiledRule := range compiledRules {
 			rulesEvaluated++
 
@@ -355,9 +359,9 @@ func (sl *ScanLoop) Scan() {
 
 				alertsEmitted++
 
-				// Record cooldown
-				if sl.cooldownTracker != nil && rule.Cooldown > 0 {
-					sl.cooldownTracker.RecordCooldown(ruleID, symbol, rule.Cooldown)
+				// Record cooldown (using global cooldown, cooldownSeconds parameter is ignored)
+				if sl.cooldownTracker != nil {
+					sl.cooldownTracker.RecordCooldown(ruleID, symbol, 0)
 				}
 			}
 		}
@@ -402,76 +406,32 @@ func (sl *ScanLoop) Scan() {
 // Returns a map that should be returned to pool after use
 func (sl *ScanLoop) getMetricsFromSnapshot(snapshot *SymbolStateSnapshot) map[string]float64 {
 	// Get metrics map from pool
-	metrics := sl.metricsPool.Get().(map[string]float64)
+	metricsMap := sl.metricsPool.Get().(map[string]float64)
 
 	// Clear map (but keep capacity)
-	for k := range metrics {
-		delete(metrics, k)
+	for k := range metricsMap {
+		delete(metricsMap, k)
 	}
 
-	// Copy indicators
-	for key, value := range snapshot.Indicators {
-		metrics[key] = value
+	// Convert scanner snapshot to metrics snapshot
+	metricSnapshot := &metrics.SymbolStateSnapshot{
+		Symbol:        snapshot.Symbol,
+		LiveBar:       snapshot.LiveBar,
+		LastFinalBars: snapshot.LastFinalBars,
+		Indicators:    snapshot.Indicators,
+		LastTickTime:  snapshot.LastTickTime,
+		LastUpdate:    snapshot.LastUpdate,
 	}
 
-	// Add computed metrics from live bar
-	if snapshot.LiveBar != nil {
-		metrics["price"] = snapshot.LiveBar.Close
+	// Compute all metrics using registry
+	computed := sl.metricRegistry.ComputeAll(metricSnapshot)
 
-		// VWAP from live bar
-		if snapshot.LiveBar.VWAPDenom > 0 {
-			metrics["vwap_live"] = snapshot.LiveBar.VWAPNum / snapshot.LiveBar.VWAPDenom
-		}
-
-		// Volume from live bar
-		metrics["volume_live"] = float64(snapshot.LiveBar.Volume)
+	// Copy computed metrics to pooled map
+	for k, v := range computed {
+		metricsMap[k] = v
 	}
 
-	// Add metrics from last finalized bar if available
-	if len(snapshot.LastFinalBars) > 0 {
-		lastBar := snapshot.LastFinalBars[len(snapshot.LastFinalBars)-1]
-		metrics["close"] = lastBar.Close
-		metrics["open"] = lastBar.Open
-		metrics["high"] = lastBar.High
-		metrics["low"] = lastBar.Low
-		metrics["volume"] = float64(lastBar.Volume)
-		metrics["vwap"] = lastBar.VWAP
-	}
-
-	// Compute price change metrics from finalized bars
-	if len(snapshot.LastFinalBars) >= 2 {
-		currentBar := snapshot.LastFinalBars[len(snapshot.LastFinalBars)-1]
-		prevBar := snapshot.LastFinalBars[len(snapshot.LastFinalBars)-2]
-
-		if prevBar.Close > 0 {
-			changePct := ((currentBar.Close - prevBar.Close) / prevBar.Close) * 100.0
-			metrics["price_change_1m_pct"] = changePct
-		}
-	}
-
-	// Compute price change over 5 minutes
-	if len(snapshot.LastFinalBars) >= 6 {
-		currentBar := snapshot.LastFinalBars[len(snapshot.LastFinalBars)-1]
-		bar5m := snapshot.LastFinalBars[len(snapshot.LastFinalBars)-6]
-
-		if bar5m.Close > 0 {
-			changePct := ((currentBar.Close - bar5m.Close) / bar5m.Close) * 100.0
-			metrics["price_change_5m_pct"] = changePct
-		}
-	}
-
-	// Compute price change over 15 minutes
-	if len(snapshot.LastFinalBars) >= 16 {
-		currentBar := snapshot.LastFinalBars[len(snapshot.LastFinalBars)-1]
-		bar15m := snapshot.LastFinalBars[len(snapshot.LastFinalBars)-16]
-
-		if bar15m.Close > 0 {
-			changePct := ((currentBar.Close - bar15m.Close) / bar15m.Close) * 100.0
-			metrics["price_change_15m_pct"] = changePct
-		}
-	}
-
-	return metrics
+	return metricsMap
 }
 
 // returnMetricsToPool returns a metrics map to the pool
@@ -586,4 +546,3 @@ func (sl *ScanLoop) updateStats(scanTime time.Duration) {
 		sl.stats.MinScanCycleTime = scanTime
 	}
 }
-

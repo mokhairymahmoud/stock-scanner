@@ -6,9 +6,13 @@ import (
 )
 
 func TestNewCooldownTracker(t *testing.T) {
-	ct := NewCooldownTracker(5 * time.Minute)
+	ct := NewCooldownTracker(10*time.Second, 5*time.Minute)
 	if ct == nil {
 		t.Fatal("Expected cooldown tracker to be created")
+	}
+
+	if ct.globalCooldown != 10*time.Second {
+		t.Errorf("Expected global cooldown 10s, got %v", ct.globalCooldown)
 	}
 
 	if ct.cleanupInterval != 5*time.Minute {
@@ -16,22 +20,22 @@ func TestNewCooldownTracker(t *testing.T) {
 	}
 
 	// Test default cleanup interval
-	ct2 := NewCooldownTracker(0)
+	ct2 := NewCooldownTracker(10*time.Second, 0)
 	if ct2.cleanupInterval != 5*time.Minute {
 		t.Errorf("Expected default cleanup interval 5m, got %v", ct2.cleanupInterval)
 	}
 }
 
 func TestCooldownTracker_IsOnCooldown(t *testing.T) {
-	ct := NewCooldownTracker(5 * time.Minute)
+	ct := NewCooldownTracker(10*time.Second, 5*time.Minute)
 
 	// Not on cooldown initially
 	if ct.IsOnCooldown("rule-1", "AAPL") {
 		t.Error("Expected not to be on cooldown initially")
 	}
 
-	// Record cooldown
-	ct.RecordCooldown("rule-1", "AAPL", 10) // 10 seconds
+	// Record cooldown (cooldownSeconds parameter is ignored, uses global cooldown)
+	ct.RecordCooldown("rule-1", "AAPL", 0)
 
 	// Should be on cooldown
 	if !ct.IsOnCooldown("rule-1", "AAPL") {
@@ -49,10 +53,10 @@ func TestCooldownTracker_IsOnCooldown(t *testing.T) {
 }
 
 func TestCooldownTracker_RecordCooldown(t *testing.T) {
-	ct := NewCooldownTracker(5 * time.Minute)
+	ct := NewCooldownTracker(10*time.Second, 5*time.Minute)
 
-	// Record cooldown
-	ct.RecordCooldown("rule-1", "AAPL", 5) // 5 seconds
+	// Record cooldown (uses global cooldown, parameter ignored)
+	ct.RecordCooldown("rule-1", "AAPL", 0)
 
 	// Verify cooldown end time
 	cooldownEnd := ct.GetCooldownEnd("rule-1", "AAPL")
@@ -66,16 +70,16 @@ func TestCooldownTracker_RecordCooldown(t *testing.T) {
 		t.Error("Expected cooldown end time to be in the future")
 	}
 
-	// Cooldown should be approximately 5 seconds from now
-	expectedEnd := now.Add(5 * time.Second)
+	// Cooldown should be approximately 10 seconds from now (global cooldown)
+	expectedEnd := now.Add(10 * time.Second)
 	diff := cooldownEnd.Sub(expectedEnd)
 	if diff < -1*time.Second || diff > 1*time.Second {
-		t.Errorf("Expected cooldown end to be approximately 5s from now, got %v", diff)
+		t.Errorf("Expected cooldown end to be approximately 10s from now, got %v", diff)
 	}
 }
 
 func TestCooldownTracker_CooldownExpires(t *testing.T) {
-	ct := NewCooldownTracker(5 * time.Minute)
+	ct := NewCooldownTracker(10*time.Second, 5*time.Minute)
 
 	// Record a very short cooldown
 	ct.RecordCooldown("rule-1", "AAPL", 1) // 1 second
@@ -95,10 +99,10 @@ func TestCooldownTracker_CooldownExpires(t *testing.T) {
 }
 
 func TestCooldownTracker_ClearCooldown(t *testing.T) {
-	ct := NewCooldownTracker(5 * time.Minute)
+	ct := NewCooldownTracker(10*time.Second, 5*time.Minute)
 
 	// Record cooldown
-	ct.RecordCooldown("rule-1", "AAPL", 10)
+	ct.RecordCooldown("rule-1", "AAPL", 0)
 
 	// Verify on cooldown
 	if !ct.IsOnCooldown("rule-1", "AAPL") {
@@ -115,10 +119,10 @@ func TestCooldownTracker_ClearCooldown(t *testing.T) {
 }
 
 func TestCooldownTracker_ClearAllCooldowns(t *testing.T) {
-	ct := NewCooldownTracker(5 * time.Minute)
+	ct := NewCooldownTracker(10*time.Second, 5*time.Minute)
 
 	// Record multiple cooldowns
-	ct.RecordCooldown("rule-1", "AAPL", 10)
+	ct.RecordCooldown("rule-1", "AAPL", 0)
 	ct.RecordCooldown("rule-1", "GOOGL", 10)
 	ct.RecordCooldown("rule-2", "AAPL", 10)
 
@@ -148,14 +152,14 @@ func TestCooldownTracker_ClearAllCooldowns(t *testing.T) {
 }
 
 func TestCooldownTracker_GetCooldownCount(t *testing.T) {
-	ct := NewCooldownTracker(5 * time.Minute)
+	ct := NewCooldownTracker(10*time.Second, 5*time.Minute)
 
 	if ct.GetCooldownCount() != 0 {
 		t.Errorf("Expected 0 cooldowns initially, got %d", ct.GetCooldownCount())
 	}
 
 	// Add cooldowns
-	ct.RecordCooldown("rule-1", "AAPL", 10)
+	ct.RecordCooldown("rule-1", "AAPL", 0)
 	ct.RecordCooldown("rule-1", "GOOGL", 10)
 
 	if ct.GetCooldownCount() != 2 {
@@ -171,13 +175,12 @@ func TestCooldownTracker_GetCooldownCount(t *testing.T) {
 }
 
 func TestCooldownTracker_InvalidInputs(t *testing.T) {
-	ct := NewCooldownTracker(5 * time.Minute)
+	ct := NewCooldownTracker(10*time.Second, 5*time.Minute)
 
 	// Empty rule ID or symbol should not record cooldown
 	ct.RecordCooldown("", "AAPL", 10)
 	ct.RecordCooldown("rule-1", "", 10)
-	ct.RecordCooldown("rule-1", "AAPL", 0) // Zero cooldown
-	ct.RecordCooldown("rule-1", "AAPL", -1) // Negative cooldown
+	ct.RecordCooldown("rule-1", "AAPL", 0) // Parameter ignored, uses global cooldown
 
 	if ct.GetCooldownCount() != 0 {
 		t.Errorf("Expected 0 cooldowns with invalid inputs, got %d", ct.GetCooldownCount())
@@ -194,7 +197,7 @@ func TestCooldownTracker_InvalidInputs(t *testing.T) {
 }
 
 func TestCooldownTracker_Concurrency(t *testing.T) {
-	ct := NewCooldownTracker(5 * time.Minute)
+	ct := NewCooldownTracker(10*time.Second, 5*time.Minute)
 
 	// Test concurrent writes and reads
 	done := make(chan bool)
@@ -236,7 +239,7 @@ func TestCooldownTracker_Concurrency(t *testing.T) {
 }
 
 func TestCooldownTracker_StartStop(t *testing.T) {
-	ct := NewCooldownTracker(100 * time.Millisecond) // Short cleanup interval for testing
+	ct := NewCooldownTracker(10*time.Second, 100*time.Millisecond) // Short cleanup interval for testing
 
 	// Start tracker
 	err := ct.Start()
@@ -299,10 +302,10 @@ func TestCooldownTracker_CleanupExpired(t *testing.T) {
 }
 
 func TestCooldownTracker_MultipleRulesSameSymbol(t *testing.T) {
-	ct := NewCooldownTracker(5 * time.Minute)
+	ct := NewCooldownTracker(10*time.Second, 5*time.Minute)
 
 	// Record cooldowns for different rules on same symbol
-	ct.RecordCooldown("rule-1", "AAPL", 10)
+	ct.RecordCooldown("rule-1", "AAPL", 0)
 	ct.RecordCooldown("rule-2", "AAPL", 20)
 	ct.RecordCooldown("rule-3", "AAPL", 30)
 
@@ -325,10 +328,10 @@ func TestCooldownTracker_MultipleRulesSameSymbol(t *testing.T) {
 }
 
 func TestCooldownTracker_SameRuleDifferentSymbols(t *testing.T) {
-	ct := NewCooldownTracker(5 * time.Minute)
+	ct := NewCooldownTracker(10*time.Second, 5*time.Minute)
 
 	// Record cooldowns for same rule on different symbols
-	ct.RecordCooldown("rule-1", "AAPL", 10)
+	ct.RecordCooldown("rule-1", "AAPL", 0)
 	ct.RecordCooldown("rule-1", "GOOGL", 20)
 	ct.RecordCooldown("rule-1", "MSFT", 30)
 
@@ -351,17 +354,17 @@ func TestCooldownTracker_SameRuleDifferentSymbols(t *testing.T) {
 }
 
 func TestCooldownTracker_OverwriteCooldown(t *testing.T) {
-	ct := NewCooldownTracker(5 * time.Minute)
+	ct := NewCooldownTracker(10*time.Second, 5*time.Minute)
 
 	// Record initial cooldown
-	ct.RecordCooldown("rule-1", "AAPL", 5)
+	ct.RecordCooldown("rule-1", "AAPL", 0)
 	firstEnd := ct.GetCooldownEnd("rule-1", "AAPL")
 
 	// Wait a bit
 	time.Sleep(100 * time.Millisecond)
 
 	// Record new cooldown (should overwrite)
-	ct.RecordCooldown("rule-1", "AAPL", 10)
+	ct.RecordCooldown("rule-1", "AAPL", 0)
 	secondEnd := ct.GetCooldownEnd("rule-1", "AAPL")
 
 	// Second end should be later than first

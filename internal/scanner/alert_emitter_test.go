@@ -160,7 +160,7 @@ func TestAlertEmitterImpl_GetStats(t *testing.T) {
 	}
 }
 
-func TestAlertEmitterImpl_PubSubOnly(t *testing.T) {
+func TestAlertEmitterImpl_NoStream(t *testing.T) {
 	redis := storage.NewMockRedisClient()
 	config := DefaultAlertEmitterConfig()
 	config.StreamName = "" // Disable stream publishing
@@ -187,38 +187,8 @@ func TestAlertEmitterImpl_PubSubOnly(t *testing.T) {
 	}
 }
 
-func TestAlertEmitterImpl_StreamOnly(t *testing.T) {
-	redis := storage.NewMockRedisClient()
-	config := DefaultAlertEmitterConfig()
-	config.PubSubChannel = "" // Disable pub/sub
-	ae := NewAlertEmitter(redis, config)
-
-	alert := &models.Alert{
-		RuleID:    "rule-1",
-		RuleName:  "Test Rule",
-		Symbol:    "AAPL",
-		Timestamp: time.Now(),
-		Price:     150.0,
-		Message:   "Test alert",
-	}
-
-	err := ae.EmitAlert(alert)
-	if err != nil {
-		t.Fatalf("Failed to emit alert: %v", err)
-	}
-
-	stats := ae.GetStats()
-	if stats.AlertsEmitted != 1 {
-		t.Errorf("Expected 1 alert emitted, got %d", stats.AlertsEmitted)
-	}
-}
-
 func TestDefaultAlertEmitterConfig(t *testing.T) {
 	config := DefaultAlertEmitterConfig()
-
-	if config.PubSubChannel != "alerts" {
-		t.Errorf("Expected PubSubChannel 'alerts', got '%s'", config.PubSubChannel)
-	}
 
 	if config.StreamName != "alerts" {
 		t.Errorf("Expected StreamName 'alerts', got '%s'", config.StreamName)

@@ -19,7 +19,6 @@ type Consumer struct {
 	redis         storage.RedisClient
 	deduplicator  *Deduplicator
 	filter        *UserFilter
-	cooldown      *CooldownManager
 	persister     *AlertPersister
 	router        *Router
 	ctx           context.Context
@@ -36,7 +35,6 @@ type ConsumerStats struct {
 	AlertsProcessed   int64
 	AlertsDeduplicated int64
 	AlertsFiltered    int64
-	AlertsCooldown    int64
 	AlertsRouted      int64
 	AlertsFailed      int64
 	LastAlertTime     time.Time
@@ -49,7 +47,6 @@ func NewConsumer(
 	redis storage.RedisClient,
 	deduplicator *Deduplicator,
 	filter *UserFilter,
-	cooldown *CooldownManager,
 	persister *AlertPersister,
 	router *Router,
 ) *Consumer {
@@ -60,7 +57,6 @@ func NewConsumer(
 		redis:        redis,
 		deduplicator: deduplicator,
 		filter:       filter,
-		cooldown:     cooldown,
 		persister:    persister,
 		router:       router,
 		ctx:          ctx,
@@ -206,7 +202,7 @@ func (c *Consumer) processBatch(messages []storage.StreamMessage) {
 			processed = append(processed, msg.ID)
 			c.incrementProcessed()
 		} else {
-			// Alert was filtered/duplicated/cooldown, still acknowledge
+			// Alert was filtered/duplicated, still acknowledge
 			processed = append(processed, msg.ID)
 		}
 	}
@@ -250,21 +246,7 @@ func (c *Consumer) processAlert(alert *models.Alert) (bool, error) {
 		return true, nil // Acknowledge but don't process further
 	}
 
-	// Step 3: Cooldown check (for MVP, use default user)
-	userID := "default" // TODO: Get actual user ID from alert metadata
-	inCooldown, err := c.cooldown.CheckAndSetCooldown(ctx, alert, userID)
-	if err != nil {
-		logger.Warn("Cooldown check failed, continuing",
-			logger.ErrorField(err),
-			logger.String("alert_id", alert.ID),
-		)
-		// Don't fail the operation
-	} else if inCooldown {
-		c.incrementCooldown()
-		return true, nil // Acknowledge but don't process further
-	}
-
-	// Step 4: Persist alert (async, non-blocking)
+	// Step 3: Persist alert (async, non-blocking)
 	err = c.persister.WriteAlerts(ctx, []*models.Alert{alert})
 	if err != nil {
 		logger.Warn("Failed to persist alert",
@@ -274,7 +256,7 @@ func (c *Consumer) processAlert(alert *models.Alert) (bool, error) {
 		// Don't fail the operation, continue to routing
 	}
 
-	// Step 5: Route to filtered stream
+	// Step 4: Route to filtered stream
 	err = c.router.RouteAlert(ctx, alert)
 	if err != nil {
 		return false, fmt.Errorf("routing failed: %w", err)
@@ -332,7 +314,6 @@ func (c *Consumer) GetStats() ConsumerStats {
 		AlertsProcessed:   c.stats.AlertsProcessed,
 		AlertsDeduplicated: c.stats.AlertsDeduplicated,
 		AlertsFiltered:    c.stats.AlertsFiltered,
-		AlertsCooldown:    c.stats.AlertsCooldown,
 		AlertsRouted:      c.stats.AlertsRouted,
 		AlertsFailed:      c.stats.AlertsFailed,
 		LastAlertTime:     c.stats.LastAlertTime,
@@ -365,11 +346,6 @@ func (c *Consumer) incrementFiltered() {
 	c.stats.AlertsFiltered++
 }
 
-func (c *Consumer) incrementCooldown() {
-	c.stats.mu.Lock()
-	defer c.stats.mu.Unlock()
-	c.stats.AlertsCooldown++
-}
 
 func (c *Consumer) incrementRouted() {
 	c.stats.mu.Lock()

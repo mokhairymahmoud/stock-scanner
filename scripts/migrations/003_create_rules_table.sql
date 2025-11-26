@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS rules (
     name VARCHAR(255) NOT NULL,
     description TEXT,
     conditions JSONB NOT NULL,
-    cooldown INTEGER NOT NULL DEFAULT 300, -- Cooldown in seconds
+    cooldown INTEGER NOT NULL DEFAULT 10, -- Cooldown in seconds
     enabled BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

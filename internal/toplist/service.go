@@ -3,7 +3,6 @@ package toplist
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/mohamedkhairy/stock-scanner/internal/models"
 	"github.com/mohamedkhairy/stock-scanner/internal/storage"
@@ -126,51 +125,6 @@ func (s *ToplistService) GetCountByConfig(ctx context.Context, config *models.To
 	}
 
 	return count, nil
-}
-
-// CacheToplistConfig caches a toplist configuration in Redis
-func (s *ToplistService) CacheToplistConfig(ctx context.Context, config *models.ToplistConfig) error {
-	key := models.GetToplistConfigRedisKey(config.ID)
-	ttl := 1 * time.Hour
-
-	err := s.redisClient.Set(ctx, key, config, ttl)
-	if err != nil {
-		logger.Warn("Failed to cache toplist config",
-			logger.ErrorField(err),
-			logger.String("toplist_id", config.ID),
-		)
-		return err
-	}
-
-	return nil
-}
-
-// GetCachedToplistConfig retrieves a cached toplist configuration from Redis
-func (s *ToplistService) GetCachedToplistConfig(ctx context.Context, toplistID string) (*models.ToplistConfig, error) {
-	key := models.GetToplistConfigRedisKey(toplistID)
-	var config models.ToplistConfig
-
-	err := s.redisClient.GetJSON(ctx, key, &config)
-	if err != nil {
-		return nil, err
-	}
-
-	// Check if config was found
-	if config.ID == "" {
-		return nil, nil
-	}
-
-	return &config, nil
-}
-
-// RefreshToplistCache refreshes the cache for a toplist configuration
-func (s *ToplistService) RefreshToplistCache(ctx context.Context, toplistID string) error {
-	config, err := s.store.GetToplistConfig(ctx, toplistID)
-	if err != nil {
-		return err
-	}
-
-	return s.CacheToplistConfig(ctx, config)
 }
 
 // ProcessToplistUpdate processes a toplist update notification and republishes if needed

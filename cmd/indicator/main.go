@@ -66,11 +66,27 @@ func main() {
 	publisherConfig := indicator.DefaultPublisherConfig()
 	publisher := indicator.NewPublisher(redisClient, publisherConfig)
 
-	// Initialize toplist updater if enabled
-	// Note: For MVP, we'll enable toplists by default
+	// Initialize toplist store and updater
+	// Note: Toplist store is optional - if database is unavailable, we'll continue without toplist updates
+	var toplistStore toplist.ToplistStore
+	toplistStore, err = toplist.NewDatabaseToplistStore(cfg.Database)
+	if err != nil {
+		logger.Warn("Failed to initialize toplist store, toplist updates will be disabled",
+			logger.ErrorField(err),
+		)
+		toplistStore = nil
+	} else {
+		defer toplistStore.Close()
+	}
+
 	toplistUpdater := toplist.NewRedisToplistUpdater(redisClient)
-	publisher.SetToplistUpdater(toplistUpdater, true)
-	logger.Info("Toplist integration enabled for indicator engine")
+	publisher.SetToplistUpdater(toplistUpdater, toplistStore != nil)
+	if toplistStore != nil {
+		publisher.SetToplistStore(toplistStore)
+		logger.Info("Toplist integration enabled for indicator engine")
+	} else {
+		logger.Info("Toplist integration disabled (database unavailable)")
+	}
 
 	if err := publisher.Start(); err != nil {
 		logger.Fatal("Failed to start indicator publisher",

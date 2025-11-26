@@ -14,10 +14,7 @@ import (
 
 // PublisherConfig holds configuration for the bar publisher
 type PublisherConfig struct {
-	LiveBarKeyPrefix string        // Prefix for live bar keys (default: "livebar:")
-	LiveBarTTL       time.Duration // TTL for live bars (default: 5 minutes)
 	FinalizedStream  string        // Stream name for finalized bars (default: "bars.finalized")
-	UpdateInterval   time.Duration // How often to update live bars (default: 1 second)
 	BatchSize        int           // Batch size for finalized bars (default: 100)
 	BatchTimeout     time.Duration // Timeout for batching finalized bars (default: 100ms)
 }
@@ -25,12 +22,9 @@ type PublisherConfig struct {
 // DefaultPublisherConfig returns default configuration
 func DefaultPublisherConfig() PublisherConfig {
 	return PublisherConfig{
-		LiveBarKeyPrefix: "livebar:",
-		LiveBarTTL:       5 * time.Minute,
-		FinalizedStream:  "bars.finalized",
-		UpdateInterval:   1 * time.Second,
-		BatchSize:        100,
-		BatchTimeout:     100 * time.Millisecond,
+		FinalizedStream: "bars.finalized",
+		BatchSize:       100,
+		BatchTimeout:    100 * time.Millisecond,
 	}
 }
 
@@ -81,9 +75,7 @@ func (p *Publisher) Start() error {
 	p.mu.Unlock()
 
 	logger.Info("Starting bar publisher",
-		logger.String("live_bar_prefix", p.config.LiveBarKeyPrefix),
 		logger.String("finalized_stream", p.config.FinalizedStream),
-		logger.Duration("update_interval", p.config.UpdateInterval),
 	)
 
 	// Start batch processing goroutine for finalized bars
@@ -112,36 +104,6 @@ func (p *Publisher) Stop() {
 
 	p.wg.Wait()
 	logger.Info("Bar publisher stopped")
-}
-
-// PublishLiveBar publishes a live bar snapshot to Redis
-func (p *Publisher) PublishLiveBar(liveBar *models.LiveBar) error {
-	if liveBar == nil {
-		return fmt.Errorf("live bar cannot be nil")
-	}
-
-	key := fmt.Sprintf("%s%s", p.config.LiveBarKeyPrefix, liveBar.Symbol)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	err := p.redis.Set(ctx, key, liveBar, p.config.LiveBarTTL)
-	if err != nil {
-		logger.Error("Failed to publish live bar",
-			logger.ErrorField(err),
-			logger.String("symbol", liveBar.Symbol),
-			logger.String("key", key),
-		)
-		return fmt.Errorf("failed to publish live bar: %w", err)
-	}
-
-	logger.Debug("Published live bar",
-		logger.String("symbol", liveBar.Symbol),
-		logger.Float64("close", liveBar.Close),
-		logger.Int64("volume", liveBar.Volume),
-	)
-
-	return nil
 }
 
 // PublishFinalizedBar publishes a finalized bar to Redis Stream (batched)
@@ -266,22 +228,6 @@ func (p *Publisher) flushFinalizedBars() error {
 	}
 
 	return nil
-}
-
-// GetLiveBar retrieves a live bar from Redis
-func (p *Publisher) GetLiveBar(symbol string) (*models.LiveBar, error) {
-	key := fmt.Sprintf("%s%s", p.config.LiveBarKeyPrefix, symbol)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	var liveBar models.LiveBar
-	err := p.redis.GetJSON(ctx, key, &liveBar)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get live bar: %w", err)
-	}
-
-	return &liveBar, nil
 }
 
 // IsRunning returns whether the publisher is running

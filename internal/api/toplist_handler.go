@@ -162,14 +162,6 @@ func (h *ToplistHandler) CreateUserToplist(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Cache config
-	if err := h.toplistService.CacheToplistConfig(ctx, &config); err != nil {
-		logger.Warn("Failed to cache toplist config",
-			logger.ErrorField(err),
-			logger.String("toplist_id", config.ID),
-		)
-	}
-
 	logger.Info("Toplist created",
 		logger.String("toplist_id", config.ID),
 		logger.String("user_id", userID),
@@ -244,14 +236,6 @@ func (h *ToplistHandler) UpdateUserToplist(w http.ResponseWriter, r *http.Reques
 	if err := h.toplistStore.UpdateToplist(ctx, &config); err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to update toplist")
 		return
-	}
-
-	// Refresh cache
-	if err := h.toplistService.RefreshToplistCache(ctx, toplistID); err != nil {
-		logger.Warn("Failed to refresh toplist cache",
-			logger.ErrorField(err),
-			logger.String("toplist_id", toplistID),
-		)
 	}
 
 	logger.Info("Toplist updated",

@@ -117,6 +117,13 @@ migrate-up: ## Run database migrations (uses Docker)
 		 echo "Waiting for database to be ready..." && \
 		 sleep 10 && \
 		 docker exec -i stock-scanner-timescaledb psql -U postgres -d stock_scanner < scripts/migrations/004_create_toplist_configs_table.sql)
+## remove cooldown table migration
+	@docker exec -i stock-scanner-timescaledb psql -U postgres -d stock_scanner < scripts/migrations/005_remove_cooldown_from_rules.sql || \
+		(echo "⚠️  TimescaleDB container not running. Starting infrastructure..." && \
+		 docker-compose -f config/docker-compose.yaml up -d timescaledb && \
+		 echo "Waiting for database to be ready..." && \
+		 sleep 10 && \
+		 docker exec -i stock-scanner-timescaledb psql -U postgres -d stock_scanner < scripts/migrations/005_remove_cooldown_from_rules.sql)
 
 fmt: ## Format code
 	@echo "Formatting code..."

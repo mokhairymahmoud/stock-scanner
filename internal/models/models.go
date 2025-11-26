@@ -130,7 +130,7 @@ type Rule struct {
 	Name        string      `json:"name"`
 	Description string      `json:"description"`
 	Conditions  []Condition `json:"conditions"`
-	Cooldown    int         `json:"cooldown"` // Cooldown in seconds
+	Cooldown    int         `json:"cooldown,omitempty"` // Deprecated: Cooldown is now global via SCANNER_COOLDOWN_DEFAULT env var
 	Enabled     bool        `json:"enabled"`
 	CreatedAt   time.Time   `json:"created_at"`
 	UpdatedAt   time.Time   `json:"updated_at"`

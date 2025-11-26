@@ -150,6 +150,8 @@ func main() {
 	v1.HandleFunc("/toplists/user/{id}", toplistHandler.DeleteUserToplist).Methods("DELETE")
 	v1.HandleFunc("/toplists/user/{id}/rankings", toplistHandler.GetToplistRankings).Methods("GET")
 
+	// TODO: access the bars data from the database (bars_1m table, ..etc)
+
 	// Health check endpoints
 	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

@@ -2,9 +2,7 @@ package rules
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/mohamedkhairy/stock-scanner/internal/storage"
 	"github.com/mohamedkhairy/stock-scanner/pkg/logger"
@@ -54,13 +52,6 @@ func (s *RuleSyncService) SyncAllRules() error {
 		}
 	}
 
-	// Publish notification that rules were updated
-	if err := s.notifyRuleUpdate("all"); err != nil {
-		logger.Warn("Failed to notify rule update",
-			logger.ErrorField(err),
-		)
-	}
-
 	return nil
 }
 
@@ -75,13 +66,6 @@ func (s *RuleSyncService) SyncRule(ruleID string) error {
 		return fmt.Errorf("failed to sync rule to Redis: %w", err)
 	}
 
-	// Publish notification
-	if err := s.notifyRuleUpdate(ruleID); err != nil {
-		logger.Warn("Failed to notify rule update",
-			logger.ErrorField(err),
-		)
-	}
-
 	return nil
 }
 
@@ -89,35 +73,6 @@ func (s *RuleSyncService) SyncRule(ruleID string) error {
 func (s *RuleSyncService) DeleteRuleFromRedis(ruleID string) error {
 	if err := s.redisStore.DeleteRule(ruleID); err != nil {
 		return fmt.Errorf("failed to delete rule from Redis: %w", err)
-	}
-
-	// Publish notification
-	if err := s.notifyRuleUpdate(ruleID); err != nil {
-		logger.Warn("Failed to notify rule update",
-			logger.ErrorField(err),
-		)
-	}
-
-	return nil
-}
-
-// notifyRuleUpdate publishes a notification that rules were updated
-func (s *RuleSyncService) notifyRuleUpdate(ruleID string) error {
-	notification := map[string]interface{}{
-		"rule_id": ruleID,
-		"timestamp": time.Now().Unix(),
-	}
-
-	data, err := json.Marshal(notification)
-	if err != nil {
-		return fmt.Errorf("failed to marshal notification: %w", err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	if err := s.redis.Publish(ctx, "rules.updated", string(data)); err != nil {
-		return fmt.Errorf("failed to publish notification: %w", err)
 	}
 
 	return nil

@@ -2,7 +2,6 @@ package scanner
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -15,7 +14,6 @@ import (
 
 // AlertEmitterConfig holds configuration for the alert emitter
 type AlertEmitterConfig struct {
-	PubSubChannel  string        // Redis pub/sub channel (default: "alerts")
 	StreamName     string        // Redis stream name (optional, for persistence)
 	PublishTimeout time.Duration // Timeout for publishing alerts
 	TraceIDHeader  string        // Header name for trace ID (default: "X-Trace-ID")
@@ -24,7 +22,6 @@ type AlertEmitterConfig struct {
 // DefaultAlertEmitterConfig returns default configuration
 func DefaultAlertEmitterConfig() AlertEmitterConfig {
 	return AlertEmitterConfig{
-		PubSubChannel:  "alerts",
 		StreamName:     "alerts", // Optional: can be empty to disable stream publishing
 		PublishTimeout: 2 * time.Second,
 		TraceIDHeader:  "X-Trace-ID",
@@ -32,7 +29,7 @@ func DefaultAlertEmitterConfig() AlertEmitterConfig {
 }
 
 // AlertEmitterImpl implements the AlertEmitter interface
-// Publishes alerts to Redis pub/sub and optionally to Redis streams
+// Publishes alerts to Redis streams
 type AlertEmitterImpl struct {
 	config  AlertEmitterConfig
 	redis   storage.RedisClient
@@ -92,37 +89,10 @@ func (ae *AlertEmitterImpl) EmitAlert(alert *models.Alert) error {
 	ctx, cancel := context.WithTimeout(context.Background(), ae.config.PublishTimeout)
 	defer cancel()
 
-	// Marshal alert to JSON for pub/sub
-	alertJSON, err := json.Marshal(alert)
-	if err != nil {
-		ae.incrementFailed()
-		return fmt.Errorf("failed to marshal alert: %w", err)
-	}
-
-	// Publish to pub/sub channel (real-time delivery)
-	if ae.config.PubSubChannel != "" {
-		err = ae.redis.Publish(ctx, ae.config.PubSubChannel, string(alertJSON))
-		if err != nil {
-			logger.Error("Failed to publish alert to pub/sub",
-				logger.ErrorField(err),
-				logger.String("channel", ae.config.PubSubChannel),
-				logger.String("alert_id", alert.ID),
-			)
-			// Don't fail the whole operation if pub/sub fails
-		} else {
-			logger.Debug("Published alert to pub/sub",
-				logger.String("channel", ae.config.PubSubChannel),
-				logger.String("alert_id", alert.ID),
-				logger.String("rule_id", alert.RuleID),
-				logger.String("symbol", alert.Symbol),
-			)
-		}
-	}
-
 	// Publish to Redis stream (optional, for persistence)
 	// Pass the alert object directly - PublishToStream will handle JSON marshaling
 	if ae.config.StreamName != "" {
-		err = ae.redis.PublishToStream(ctx, ae.config.StreamName, "alert", alert)
+		err := ae.redis.PublishToStream(ctx, ae.config.StreamName, "alert", alert)
 		if err != nil {
 			logger.Error("Failed to publish alert to stream",
 				logger.ErrorField(err),

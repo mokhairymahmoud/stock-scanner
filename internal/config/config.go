@@ -139,9 +139,8 @@ type AlertConfig struct {
 	StreamName        string
 	BatchSize         int
 	ProcessTimeout    time.Duration
-	DedupeTTL         time.Duration
-	CooldownTTL       time.Duration
-	FilteredStreamName string
+		DedupeTTL         time.Duration
+		FilteredStreamName string
 	DBWriteBatchSize  int
 	DBWriteInterval   time.Duration
 	DBWriteQueueSize  int
@@ -229,7 +228,7 @@ func Load() (*Config, error) {
 			WorkerCount:       getEnvAsInt("SCANNER_WORKER_COUNT", 1),
 			ScanInterval:      getEnvAsDuration("SCANNER_SCAN_INTERVAL", 1*time.Second),
 			SymbolUniverse:    getEnvAsStringSlice("SCANNER_SYMBOL_UNIVERSE", []string{}),
-			CooldownDefault:   getEnvAsDuration("SCANNER_COOLDOWN_DEFAULT", 5*time.Minute),
+			CooldownDefault:   getEnvAsDuration("SCANNER_COOLDOWN_DEFAULT", 10*time.Second),
 			BufferSize:        getEnvAsInt("SCANNER_BUFFER_SIZE", 1000),
 			RuleStoreType:     getEnv("SCANNER_RULE_STORE_TYPE", "memory"), // "memory" or "redis"
 			RuleReloadInterval: getEnvAsDuration("SCANNER_RULE_RELOAD_INTERVAL", 30*time.Second),
@@ -242,10 +241,9 @@ func Load() (*Config, error) {
 			ConsumerGroup:     getEnv("ALERT_CONSUMER_GROUP", "alert-service"),
 			StreamName:        getEnv("ALERT_STREAM_NAME", "alerts"),
 			BatchSize:         getEnvAsInt("ALERT_BATCH_SIZE", 100),
-			ProcessTimeout:     getEnvAsDuration("ALERT_PROCESS_TIMEOUT", 5*time.Second),
-			DedupeTTL:          getEnvAsDuration("ALERT_DEDUPE_TTL", 1*time.Hour),
-			CooldownTTL:        getEnvAsDuration("ALERT_COOLDOWN_TTL", 5*time.Minute),
-			FilteredStreamName: getEnv("ALERT_FILTERED_STREAM_NAME", "alerts.filtered"),
+		ProcessTimeout:     getEnvAsDuration("ALERT_PROCESS_TIMEOUT", 5*time.Second),
+		DedupeTTL:          getEnvAsDuration("ALERT_DEDUPE_TTL", 1*time.Hour),
+		FilteredStreamName: getEnv("ALERT_FILTERED_STREAM_NAME", "alerts.filtered"),
 			DBWriteBatchSize:   getEnvAsInt("ALERT_DB_WRITE_BATCH_SIZE", 100),
 			DBWriteInterval:    getEnvAsDuration("ALERT_DB_WRITE_INTERVAL", 5*time.Second),
 			DBWriteQueueSize:   getEnvAsInt("ALERT_DB_WRITE_QUEUE_SIZE", 1000),

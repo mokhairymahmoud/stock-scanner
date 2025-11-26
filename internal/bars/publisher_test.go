@@ -1,7 +1,6 @@
 package bars
 
 import (
-	"encoding/json"
 	"sync"
 	"testing"
 	"time"
@@ -11,39 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestPublisher_PublishLiveBar(t *testing.T) {
-	mockRedis := storage.NewMockRedisClient()
-	config := DefaultPublisherConfig()
-	publisher := NewPublisher(mockRedis, config)
-
-	liveBar := &models.LiveBar{
-		Symbol:    "AAPL",
-		Timestamp: time.Now().Truncate(time.Minute),
-		Open:      150.0,
-		High:      151.0,
-		Low:       149.0,
-		Close:     150.5,
-		Volume:    1000,
-		VWAPNum:   150500.0,
-		VWAPDenom: 1000.0,
-	}
-
-	err := publisher.PublishLiveBar(liveBar)
-	require.NoError(t, err)
-
-	// Verify the bar was stored in Redis
-	key := "livebar:AAPL"
-	value, exists := mockRedis.Data[key]
-	assert.True(t, exists, "Live bar should be stored in Redis")
-
-	// Verify the stored value is JSON
-	var storedBar models.LiveBar
-	err = json.Unmarshal([]byte(value), &storedBar)
-	require.NoError(t, err)
-	assert.Equal(t, liveBar.Symbol, storedBar.Symbol)
-	assert.Equal(t, liveBar.Close, storedBar.Close)
-}
 
 func TestPublisher_PublishFinalizedBar(t *testing.T) {
 	mockRedis := storage.NewMockRedisClient()
@@ -91,33 +57,6 @@ func TestPublisher_PublishFinalizedBar(t *testing.T) {
 
 	// Verify bars were published to stream
 	assert.Greater(t, len(mockRedis.StreamData), 0, "Bars should be published to stream")
-}
-
-func TestPublisher_GetLiveBar(t *testing.T) {
-	mockRedis := storage.NewMockRedisClient()
-	config := DefaultPublisherConfig()
-	publisher := NewPublisher(mockRedis, config)
-
-	liveBar := &models.LiveBar{
-		Symbol:    "AAPL",
-		Timestamp: time.Now().Truncate(time.Minute),
-		Open:      150.0,
-		High:      151.0,
-		Low:       149.0,
-		Close:     150.5,
-		Volume:    1000,
-	}
-
-	// Publish live bar
-	err := publisher.PublishLiveBar(liveBar)
-	require.NoError(t, err)
-
-	// Retrieve live bar
-	retrieved, err := publisher.GetLiveBar("AAPL")
-	require.NoError(t, err)
-	assert.Equal(t, liveBar.Symbol, retrieved.Symbol)
-	assert.Equal(t, liveBar.Close, retrieved.Close)
-	assert.Equal(t, liveBar.Volume, retrieved.Volume)
 }
 
 func TestPublisher_BatchFlush(t *testing.T) {
@@ -196,11 +135,6 @@ func TestPublisher_IntegrationWithAggregator(t *testing.T) {
 		publisher.PublishFinalizedBar(bar)
 	})
 
-	// Set up aggregator to publish live bar updates
-	agg.SetOnBarUpdate(func(liveBar *models.LiveBar) {
-		publisher.PublishLiveBar(liveBar)
-	})
-
 	err := publisher.Start()
 	require.NoError(t, err)
 	defer publisher.Stop()
@@ -229,11 +163,6 @@ func TestPublisher_IntegrationWithAggregator(t *testing.T) {
 	assert.Equal(t, 151.0, liveBar.High, "High should be 151.0")
 	assert.Equal(t, 149.0, liveBar.Low, "Low should be 149.0")
 	assert.Equal(t, int64(350), liveBar.Volume, "Volume should be 350")
-
-	// Verify live bar was also published to Redis
-	redisLiveBar, err := publisher.GetLiveBar("AAPL")
-	require.NoError(t, err)
-	assert.Equal(t, "AAPL", redisLiveBar.Symbol)
 
 	// Process tick in next minute to trigger finalization
 	nextMinuteTick := &models.Tick{

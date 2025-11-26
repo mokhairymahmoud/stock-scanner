@@ -69,7 +69,7 @@ func NewDatabaseRuleStore(dbConfig config.DatabaseConfig) (*DatabaseRuleStore, e
 // GetRule retrieves a rule by ID
 func (s *DatabaseRuleStore) GetRule(id string) (*models.Rule, error) {
 	query := `
-		SELECT id, name, description, conditions, cooldown, enabled, created_at, updated_at, version
+		SELECT id, name, description, conditions, enabled, created_at, updated_at, version
 		FROM rules
 		WHERE id = $1
 	`
@@ -84,7 +84,6 @@ func (s *DatabaseRuleStore) GetRule(id string) (*models.Rule, error) {
 		&rule.Name,
 		&rule.Description,
 		&conditionsJSON,
-		&rule.Cooldown,
 		&rule.Enabled,
 		&createdAt,
 		&updatedAt,
@@ -111,7 +110,7 @@ func (s *DatabaseRuleStore) GetRule(id string) (*models.Rule, error) {
 // GetAllRules retrieves all rules
 func (s *DatabaseRuleStore) GetAllRules() ([]*models.Rule, error) {
 	query := `
-		SELECT id, name, description, conditions, cooldown, enabled, created_at, updated_at, version
+		SELECT id, name, description, conditions, enabled, created_at, updated_at, version
 		FROM rules
 		ORDER BY created_at DESC
 	`
@@ -134,7 +133,6 @@ func (s *DatabaseRuleStore) GetAllRules() ([]*models.Rule, error) {
 			&rule.Name,
 			&rule.Description,
 			&conditionsJSON,
-			&rule.Cooldown,
 			&rule.Enabled,
 			&createdAt,
 			&updatedAt,
@@ -170,13 +168,12 @@ func (s *DatabaseRuleStore) AddRule(rule *models.Rule) error {
 	}
 
 	query := `
-		INSERT INTO rules (id, name, description, conditions, cooldown, enabled, created_at, updated_at, version)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1)
+		INSERT INTO rules (id, name, description, conditions, enabled, created_at, updated_at, version)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, 1)
 		ON CONFLICT (id) DO UPDATE
 		SET name = EXCLUDED.name,
 		    description = EXCLUDED.description,
 		    conditions = EXCLUDED.conditions,
-		    cooldown = EXCLUDED.cooldown,
 		    enabled = EXCLUDED.enabled,
 		    updated_at = EXCLUDED.updated_at,
 		    version = rules.version + 1
@@ -187,7 +184,6 @@ func (s *DatabaseRuleStore) AddRule(rule *models.Rule) error {
 		rule.Name,
 		rule.Description,
 		conditionsJSON,
-		rule.Cooldown,
 		rule.Enabled,
 		rule.CreatedAt,
 		rule.UpdatedAt,
@@ -212,9 +208,8 @@ func (s *DatabaseRuleStore) UpdateRule(rule *models.Rule) error {
 		SET name = $2,
 		    description = $3,
 		    conditions = $4,
-		    cooldown = $5,
-		    enabled = $6,
-		    updated_at = $7,
+		    enabled = $5,
+		    updated_at = $6,
 		    version = version + 1
 		WHERE id = $1
 	`
@@ -224,7 +219,6 @@ func (s *DatabaseRuleStore) UpdateRule(rule *models.Rule) error {
 		rule.Name,
 		rule.Description,
 		conditionsJSON,
-		rule.Cooldown,
 		rule.Enabled,
 		rule.UpdatedAt,
 	)

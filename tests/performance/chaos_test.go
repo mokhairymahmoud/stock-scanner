@@ -379,7 +379,7 @@ func TestChaos_NoDuplicateAlerts(t *testing.T) {
 	}
 
 	// This test verifies that cooldown mechanism prevents duplicate alerts
-	cooldownTracker := scanner.NewCooldownTracker(5 * time.Minute)
+	cooldownTracker := scanner.NewCooldownTracker(10*time.Second, 5*time.Minute)
 	ruleID := "rule-test"
 	symbol := "AAPL"
 

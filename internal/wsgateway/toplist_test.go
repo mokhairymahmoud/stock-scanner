@@ -74,6 +74,9 @@ func TestHub_BroadcastToplistUpdate(t *testing.T) {
 		ConsumerGroup:   "ws-gateway",
 	}
 	hub := NewHub(cfg, mockRedis, "alerts.filtered", "ws-gateway")
+	if hub == nil {
+		t.Fatal("NewHub() returned nil")
+	}
 
 	// Create test connections (without actual websocket connections for unit test)
 	conn1 := NewConnection("conn-1", "user-123", nil)
@@ -134,4 +137,3 @@ func TestProtocol_UnsubscribeToplist(t *testing.T) {
 		t.Error("HandleClientMessage() failed to unsubscribe from toplist")
 	}
 }
-

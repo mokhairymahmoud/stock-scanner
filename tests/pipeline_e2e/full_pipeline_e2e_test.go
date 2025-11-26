@@ -158,21 +158,26 @@ func TestFullPipelineE2E(t *testing.T) {
 	// Step 7: Start mini scanner worker to process data and trigger alerts
 	t.Log("Step 7: Starting mini scanner worker...")
 
-	// Subscribe to alerts channel BEFORE starting scanner
+	// Consume from alerts stream BEFORE starting scanner
 	alertCount := int64(0)
 	startTime := time.Now()
-	alertChan, err := redisClient.Subscribe(ctx, "alerts")
+	alertChan, err := redisClient.ConsumeFromStream(ctx, "alerts", "test-alert-group", "test-alert-consumer")
 	if err != nil {
-		t.Fatalf("Failed to subscribe to alerts channel: %v", err)
+		t.Fatalf("Failed to consume from alerts stream: %v", err)
 	}
 
 	// Monitor alerts in background
 	go func() {
 		for msg := range alertChan {
-			if msg.Channel == "alerts" {
-				atomic.AddInt64(&alertCount, 1)
-				t.Logf("Received alert: %s", msg.Message)
+			atomic.AddInt64(&alertCount, 1)
+			// Extract alert from stream message
+			if alertValue, ok := msg.Values["alert"]; ok {
+				if alertStr, ok := alertValue.(string); ok {
+					t.Logf("Received alert: %s", alertStr)
+				}
 			}
+			// Acknowledge message
+			_ = redisClient.AcknowledgeMessage(ctx, "alerts", "test-alert-group", msg.ID)
 		}
 	}()
 
@@ -190,14 +195,14 @@ func TestFullPipelineE2E(t *testing.T) {
 	compiler := rules.NewCompiler(nil)
 
 	// Create cooldown tracker
-	cooldownTracker := scanner.NewCooldownTracker(5 * time.Minute)
+	cooldownTracker := scanner.NewCooldownTracker(10*time.Second, 5*time.Minute)
 
 	// Create alert emitter
 	alertEmitterConfig := scanner.DefaultAlertEmitterConfig()
 	alertEmitter := scanner.NewAlertEmitter(redisClient, alertEmitterConfig)
 
 	// Create toplist integration (disabled for this test)
-	toplistIntegration := scanner.NewToplistIntegration(nil, false, 1*time.Second)
+	toplistIntegration := scanner.NewToplistIntegration(nil, nil, false, 1*time.Second)
 
 	// Create scan loop
 	scanLoopConfig := scanner.DefaultScanLoopConfig()
