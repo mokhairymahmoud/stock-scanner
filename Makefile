@@ -1,4 +1,4 @@
-.PHONY: help build test clean run-ingest run-bars run-indicator run-scanner run-alert run-ws-gateway run-api docker-up docker-down migrate-up migrate-down
+.PHONY: help build test test-performance test-worker-scaling test-coverage clean clean-db docker-up docker-up-all docker-down docker-logs docker-logs-service docker-build docker-restart docker-test docker-deploy docker-verify e2e-test validate-phase2 migrate-up fmt lint run-ingest run-bars run-indicator run-scanner run-alert run-ws-gateway run-api deps
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -42,14 +42,11 @@ clean: ## Clean build artifacts
 clean-db: ## Clean database
 	@echo "Cleaning database..."
 	@docker-compose -f config/docker-compose.yaml down -v
-	@docker volume rm stock-scanner-timescaledb-data
-	@docker volume rm stock-scanner-redis-data
-	@docker volume rm stock-scanner-prometheus-data
-	@docker volume rm stock-scanner-grafana-data
+	@docker volume rm stock-scanner-timescaledb-data stock-scanner-redis-data stock-scanner-prometheus-data stock-scanner-grafana-data stock-scanner-redisinsight-data stock-scanner-loki-data stock-scanner-promtail-data stock-scanner-jaeger-data 2>/dev/null || true
 
 docker-up: ## Start Docker Compose services (infrastructure only)
 	@echo "Starting Docker Compose services (infrastructure)..."
-	@docker-compose -f config/docker-compose.yaml up -d redis timescaledb prometheus grafana redisinsight
+	@docker-compose -f config/docker-compose.yaml up -d redis timescaledb prometheus grafana redisinsight loki promtail jaeger
 
 docker-up-all: ## Start all Docker Compose services (including Go services)
 	@echo "Starting all Docker Compose services..."
@@ -74,7 +71,11 @@ docker-restart: ## Restart all services
 
 docker-test: ## Test all services
 	@echo "Testing all services..."
-	@./scripts/test_services.sh
+	@if [ -f ./scripts/test_services.sh ]; then \
+		./scripts/test_services.sh; \
+	else \
+		echo "⚠️  test_services.sh not found. Skipping..."; \
+	fi
 
 docker-deploy: ## Deploy all services
 	@echo "Deploying all services..."
@@ -89,7 +90,11 @@ e2e-test: ## Interactive E2E testing helper
 
 validate-phase2: ## Validate Phase 2 (Indicator Engine) implementation
 	@echo "Validating Phase 2: Indicator Engine..."
-	@./scripts/validate_phase2.sh
+	@if [ -f ./scripts/validate_phase2.sh ]; then \
+		./scripts/validate_phase2.sh; \
+	else \
+		echo "⚠️  validate_phase2.sh not found. Skipping..."; \
+	fi
 
 migrate-up: ## Run database migrations (uses Docker)
 	@echo "Running migrations..."
@@ -124,6 +129,13 @@ migrate-up: ## Run database migrations (uses Docker)
 		 echo "Waiting for database to be ready..." && \
 		 sleep 10 && \
 		 docker exec -i stock-scanner-timescaledb psql -U postgres -d stock_scanner < scripts/migrations/005_remove_cooldown_from_rules.sql)
+## seed system toplists
+	@docker exec -i stock-scanner-timescaledb psql -U postgres -d stock_scanner < scripts/migrations/006_seed_system_toplists.sql || \
+		(echo "⚠️  TimescaleDB container not running. Starting infrastructure..." && \
+		 docker-compose -f config/docker-compose.yaml up -d timescaledb && \
+		 echo "Waiting for database to be ready..." && \
+		 sleep 10 && \
+		 docker exec -i stock-scanner-timescaledb psql -U postgres -d stock_scanner < scripts/migrations/006_seed_system_toplists.sql)
 
 fmt: ## Format code
 	@echo "Formatting code..."

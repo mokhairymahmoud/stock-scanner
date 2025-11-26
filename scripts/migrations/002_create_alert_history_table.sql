@@ -2,16 +2,17 @@
 -- This table stores all alerts that have been processed by the alert service
 
 CREATE TABLE IF NOT EXISTS alert_history (
-    id VARCHAR(255) PRIMARY KEY,
-    rule_id VARCHAR(255) NOT NULL,
-    rule_name VARCHAR(255) NOT NULL,
-    symbol VARCHAR(50) NOT NULL,
+    id TEXT NOT NULL,
+    rule_id TEXT NOT NULL,
+    rule_name TEXT NOT NULL,
+    symbol TEXT NOT NULL,
     timestamp TIMESTAMPTZ NOT NULL,
     price DECIMAL(20, 8) NOT NULL,
     message TEXT,
     metadata JSONB,
-    trace_id VARCHAR(255),
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    trace_id TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (id, timestamp)
 );
 
 -- Create indexes for common queries

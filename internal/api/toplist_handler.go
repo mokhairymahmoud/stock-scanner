@@ -41,11 +41,19 @@ func (h *ToplistHandler) ListToplists(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get system toplists (enabled ones)
-	systemToplists, err := h.toplistStore.GetEnabledToplists(ctx, "")
+	// Get system toplists (enabled ones with user_id = NULL)
+	allToplists, err := h.toplistStore.GetEnabledToplists(ctx, "")
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve system toplists")
+		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve toplists")
 		return
+	}
+	
+	// Filter to get only system toplists (user_id is empty)
+	systemToplists := make([]*models.ToplistConfig, 0)
+	for _, tl := range allToplists {
+		if tl.IsSystemToplist() {
+			systemToplists = append(systemToplists, tl)
+		}
 	}
 
 	respondWithJSON(w, http.StatusOK, map[string]interface{}{
@@ -55,50 +63,54 @@ func (h *ToplistHandler) ListToplists(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// GetSystemToplist handles GET /api/v1/toplists/system/:type
+// GetSystemToplist handles GET /api/v1/toplists/system/:id
+// Now queries the database for system toplist configuration (user_id = NULL)
 func (h *ToplistHandler) GetSystemToplist(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	toplistType := vars["type"]
+	toplistID := vars["id"] // Changed from "type" to "id" for consistency
 
 	// Parse query parameters
 	limit := parseIntQuery(r, "limit", 50, 1, 500)
 	offset := parseIntQuery(r, "offset", 0, 0, 10000)
 
-	// Map system toplist type to metric and window
-	metric, window, err := parseSystemToplistType(toplistType)
+	ctx := r.Context()
+
+	// Get system toplist configuration from database
+	config, err := h.toplistStore.GetToplistConfig(ctx, toplistID)
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid toplist type: "+err.Error())
+		respondWithError(w, http.StatusNotFound, "System toplist not found")
 		return
 	}
 
-	ctx := r.Context()
+	// Verify it's a system toplist (user_id should be empty)
+	if !config.IsSystemToplist() {
+		respondWithError(w, http.StatusBadRequest, "Not a system toplist")
+		return
+	}
 
-	// Create a temporary config for system toplist (not stored in DB)
-	tempConfig := &models.ToplistConfig{
-		ID:         toplistType,
-		UserID:     "", // System toplist
-		Metric:     metric,
-		TimeWindow: window,
-		SortOrder:  models.SortOrderDesc, // System toplists are typically descending
-		Enabled:    true,
+	// Verify it's enabled
+	if !config.Enabled {
+		respondWithError(w, http.StatusNotFound, "System toplist is disabled")
+		return
 	}
 
 	// Get rankings using the config
-	rankings, err := h.toplistService.GetRankingsByConfig(ctx, tempConfig, limit, offset, nil)
+	rankings, err := h.toplistService.GetRankingsByConfig(ctx, config, limit, offset, nil)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve toplist rankings")
 		return
 	}
 
 	// Get total count
-	total, err := h.toplistService.GetCountByConfig(ctx, tempConfig)
+	total, err := h.toplistService.GetCountByConfig(ctx, config)
 	if err != nil {
 		total = int64(len(rankings))
 	}
 
 	respondWithJSON(w, http.StatusOK, map[string]interface{}{
-		"toplist_type": toplistType,
-		"rankings":      rankings,
+		"toplist_id":   config.ID,
+		"toplist_name": config.Name,
+		"rankings":     rankings,
 		"pagination": map[string]interface{}{
 			"limit":  limit,
 			"offset": offset,
@@ -379,37 +391,10 @@ func parseIntQuery(r *http.Request, key string, defaultValue, min, max int) int 
 	return value
 }
 
+// parseSystemToplistType is deprecated - system toplists are now stored in the database
+// This function is kept for backward compatibility but should not be used
+// TODO: Remove this function after migration is complete
 func parseSystemToplistType(toplistType string) (models.ToplistMetric, models.ToplistTimeWindow, error) {
-	// Map system toplist types to metrics and windows
-	switch models.SystemToplistType(toplistType) {
-	case models.SystemToplistGainers1m, models.SystemToplistLosers1m:
-		return models.MetricChangePct, models.Window1m, nil
-	case models.SystemToplistGainers5m, models.SystemToplistLosers5m:
-		return models.MetricChangePct, models.Window5m, nil
-	case models.SystemToplistGainers15m, models.SystemToplistLosers15m:
-		return models.MetricChangePct, models.Window15m, nil
-	case models.SystemToplistGainers1h, models.SystemToplistLosers1h:
-		return models.MetricChangePct, models.Window1h, nil
-	case models.SystemToplistGainers1d, models.SystemToplistLosers1d:
-		return models.MetricChangePct, models.Window1d, nil
-	case models.SystemToplistVolume1m:
-		return models.MetricVolume, models.Window1m, nil
-	case models.SystemToplistVolume5m:
-		return models.MetricVolume, models.Window5m, nil
-	case models.SystemToplistVolume15m:
-		return models.MetricVolume, models.Window15m, nil
-	case models.SystemToplistVolume1h:
-		return models.MetricVolume, models.Window1h, nil
-	case models.SystemToplistVolume1d:
-		return models.MetricVolume, models.Window1d, nil
-	case models.SystemToplistRSIHigh, models.SystemToplistRSILow:
-		return models.MetricRSI, models.Window1m, nil
-	case models.SystemToplistRelVolume:
-		return models.MetricRelativeVolume, models.Window15m, nil
-	case models.SystemToplistVWAPDistHigh, models.SystemToplistVWAPDistLow:
-		return models.MetricVWAPDist, models.Window5m, nil
-	default:
-		return "", "", fmt.Errorf("unknown system toplist type: %s", toplistType)
-	}
+	return "", "", fmt.Errorf("parseSystemToplistType is deprecated - system toplists are now stored in the database. Use GetToplistConfig instead")
 }
 

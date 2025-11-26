@@ -254,7 +254,7 @@ func (p *AlertPersister) insertBatch(ctx context.Context, alerts []*models.Alert
 	query := `
 		INSERT INTO alert_history (id, rule_id, rule_name, symbol, timestamp, price, message, metadata, trace_id)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		ON CONFLICT (id) DO NOTHING
+		ON CONFLICT (id, timestamp) DO NOTHING
 	`
 
 	tx, err := p.db.BeginTx(ctx, nil)

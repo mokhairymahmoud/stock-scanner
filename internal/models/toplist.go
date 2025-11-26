@@ -36,6 +36,9 @@ const (
 )
 
 // SystemToplistType represents predefined system toplist types
+// DEPRECATED: System toplists are now stored in the database (user_id = NULL).
+// These constants are kept for backward compatibility and match the IDs used in the migration.
+// Use GetToplistConfig from the database store instead of hardcoded types.
 type SystemToplistType string
 
 const (
@@ -196,6 +199,8 @@ func GetUserToplistRedisKey(userID string, toplistID string) string {
 }
 
 // GetSystemToplistType returns the system toplist type for a given metric and window
+// DEPRECATED: System toplists are now stored in the database. This function is kept for backward compatibility.
+// Use GetToplistConfig from the database store instead.
 func GetSystemToplistType(metric ToplistMetric, window ToplistTimeWindow, isGainer bool) SystemToplistType {
 	if metric == MetricChangePct {
 		if isGainer {

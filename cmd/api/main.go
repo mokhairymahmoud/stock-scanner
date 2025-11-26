@@ -142,7 +142,7 @@ func main() {
 
 	// Toplist endpoints
 	v1.HandleFunc("/toplists", toplistHandler.ListToplists).Methods("GET")
-	v1.HandleFunc("/toplists/system/{type}", toplistHandler.GetSystemToplist).Methods("GET")
+	v1.HandleFunc("/toplists/system/{id}", toplistHandler.GetSystemToplist).Methods("GET")
 	v1.HandleFunc("/toplists/user", toplistHandler.ListUserToplists).Methods("GET")
 	v1.HandleFunc("/toplists/user", toplistHandler.CreateUserToplist).Methods("POST")
 	v1.HandleFunc("/toplists/user/{id}", toplistHandler.GetUserToplist).Methods("GET")
