@@ -15,15 +15,16 @@ const (
 	DefaultRedisRuleKeyPrefix = "rules:"
 	// DefaultRedisRuleSetKey is the default key for the set of all rule IDs
 	DefaultRedisRuleSetKey = "rules:ids"
-	// DefaultRedisRuleTTL is the default TTL for rule keys (1 hour)
-	DefaultRedisRuleTTL = 1 * time.Hour
+	// DefaultRedisRuleTTL is the default TTL for rule keys (0 = no expiration)
+	// Rules are synced from database and should not expire
+	DefaultRedisRuleTTL = 0
 )
 
 // RedisRuleStoreConfig holds configuration for RedisRuleStore
 type RedisRuleStoreConfig struct {
 	KeyPrefix string        // Prefix for rule keys (default: "rules:")
 	SetKey    string        // Key for the set of all rule IDs (default: "rules:ids")
-	TTL       time.Duration // TTL for rule keys (default: 1 hour)
+	TTL       time.Duration // TTL for rule keys (default: 0 = no expiration)
 }
 
 // DefaultRedisRuleStoreConfig returns default configuration
@@ -56,7 +57,8 @@ func NewRedisRuleStore(redis storage.RedisClient, config RedisRuleStoreConfig) (
 	if config.SetKey == "" {
 		config.SetKey = DefaultRedisRuleSetKey
 	}
-	if config.TTL <= 0 {
+	// TTL of 0 means no expiration (rules should persist until explicitly deleted)
+	if config.TTL < 0 {
 		config.TTL = DefaultRedisRuleTTL
 	}
 
@@ -106,18 +108,36 @@ func (s *RedisRuleStore) GetAllRules() ([]*models.Rule, error) {
 		return []*models.Rule{}, nil
 	}
 
-	// Fetch all rules
+	// Fetch all rules and clean up orphaned IDs
 	rules := make([]*models.Rule, 0, len(ruleIDs))
+	orphanedIDs := make([]string, 0)
+
 	for _, id := range ruleIDs {
 		rule, err := s.GetRule(id)
 		if err != nil {
-			logger.Warn("Failed to get rule",
+			// Rule doesn't exist (expired or deleted), mark as orphaned
+			logger.Debug("Found orphaned rule ID in set, will remove",
 				logger.String("rule_id", id),
-				logger.ErrorField(err),
 			)
-			continue // Skip invalid rules
+			orphanedIDs = append(orphanedIDs, id)
+			continue
 		}
 		rules = append(rules, rule)
+	}
+
+	// Clean up orphaned IDs from set (self-healing)
+	if len(orphanedIDs) > 0 {
+		logger.Info("Cleaning up orphaned rule IDs from set",
+			logger.Int("count", len(orphanedIDs)),
+		)
+		for _, id := range orphanedIDs {
+			if err := s.redis.SetRemove(s.ctx, s.config.SetKey, id); err != nil {
+				logger.Warn("Failed to remove orphaned rule ID from set",
+					logger.String("rule_id", id),
+					logger.ErrorField(err),
+				)
+			}
+		}
 	}
 
 	return rules, nil
@@ -169,7 +189,7 @@ func (s *RedisRuleStore) AddRule(rule *models.Rule) error {
 		rule.UpdatedAt = now
 	}
 
-	// Store rule in Redis
+	// Store rule in Redis (TTL of 0 means no expiration)
 	key := s.config.KeyPrefix + rule.ID
 	err = s.redis.Set(s.ctx, key, rule, s.config.TTL)
 	if err != nil {
@@ -214,7 +234,7 @@ func (s *RedisRuleStore) UpdateRule(rule *models.Rule) error {
 	// Update UpdatedAt
 	rule.UpdatedAt = time.Now()
 
-	// Update rule in Redis
+	// Update rule in Redis (TTL of 0 means no expiration)
 	key := s.config.KeyPrefix + rule.ID
 	err = s.redis.Set(s.ctx, key, rule, s.config.TTL)
 	if err != nil {
@@ -293,7 +313,7 @@ func (s *RedisRuleStore) setRuleEnabled(id string, enabled bool) error {
 	rule.Enabled = enabled
 	rule.UpdatedAt = time.Now()
 
-	// Update rule in Redis
+	// Update rule in Redis (TTL of 0 means no expiration)
 	key := s.config.KeyPrefix + id
 	err = s.redis.Set(s.ctx, key, rule, s.config.TTL)
 	if err != nil {

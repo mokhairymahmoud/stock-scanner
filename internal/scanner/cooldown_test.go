@@ -266,7 +266,7 @@ func TestCooldownTracker_StartStop(t *testing.T) {
 }
 
 func TestCooldownTracker_CleanupExpired(t *testing.T) {
-	ct := NewCooldownTracker(100 * time.Millisecond)
+	ct := NewCooldownTracker(10*time.Second, 100*time.Millisecond)
 
 	// Start tracker
 	ct.Start()
