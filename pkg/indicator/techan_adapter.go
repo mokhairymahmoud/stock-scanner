@@ -19,14 +19,18 @@ type TechanCalculator struct {
 }
 
 // NewTechanCalculator creates a new Techan-based calculator
+// The indicator must be created with the same TimeSeries that will be used for updates
 func NewTechanCalculator(
 	name string,
 	indicator techan.Indicator,
 	period int,
 ) *TechanCalculator {
+	// Create TimeSeries that will be shared with the indicator
+	series := techan.NewTimeSeries()
+	
 	return &TechanCalculator{
 		name:      name,
-		series:    techan.NewTimeSeries(),
+		series:    series,
 		indicator: indicator,
 		period:    period,
 		ready:     false,
@@ -92,4 +96,3 @@ func (t *TechanCalculator) WindowSize() int {
 func (t *TechanCalculator) BarsProcessed() int {
 	return t.series.LastIndex() + 1
 }
-

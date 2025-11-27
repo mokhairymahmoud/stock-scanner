@@ -9,15 +9,22 @@ import (
 // CreateTechanRSI creates an RSI indicator using Techan
 func CreateTechanRSI(period int) func() (Calculator, error) {
 	return func() (Calculator, error) {
+		// Create TimeSeries first - will be shared with adapter
 		series := techan.NewTimeSeries()
 		closePrice := techan.NewClosePriceIndicator(series)
 		rsi := techan.NewRelativeStrengthIndexIndicator(closePrice, period)
 
-		return NewTechanCalculator(
+		// Create calculator with indicator
+		calc := NewTechanCalculator(
 			fmt.Sprintf("rsi_%d", period),
 			rsi,
 			period,
-		), nil
+		)
+		
+		// CRITICAL: Use the same TimeSeries for the indicator and adapter
+		calc.series = series
+		
+		return calc, nil
 	}
 }
 
@@ -28,11 +35,13 @@ func CreateTechanEMA(period int) func() (Calculator, error) {
 		closePrice := techan.NewClosePriceIndicator(series)
 		ema := techan.NewEMAIndicator(closePrice, period)
 
-		return NewTechanCalculator(
+		calc := NewTechanCalculator(
 			fmt.Sprintf("ema_%d", period),
 			ema,
 			period,
-		), nil
+		)
+		calc.series = series
+		return calc, nil
 	}
 }
 
@@ -43,11 +52,13 @@ func CreateTechanSMA(period int) func() (Calculator, error) {
 		closePrice := techan.NewClosePriceIndicator(series)
 		sma := techan.NewMMAIndicator(closePrice, period) // MMA is SMA in Techan
 
-		return NewTechanCalculator(
+		calc := NewTechanCalculator(
 			fmt.Sprintf("sma_%d", period),
 			sma,
 			period,
-		), nil
+		)
+		calc.series = series
+		return calc, nil
 	}
 }
 
@@ -59,12 +70,13 @@ func CreateTechanMACD(fastPeriod, slowPeriod, signalPeriod int) func() (Calculat
 		macd := techan.NewMACDIndicator(closePrice, fastPeriod, slowPeriod)
 		// Note: Signal line is separate in Techan, we'll use MACD line for now
 
-		// MACD requires slowPeriod bars to be ready
-		return NewTechanCalculator(
+		calc := NewTechanCalculator(
 			fmt.Sprintf("macd_%d_%d_%d", fastPeriod, slowPeriod, signalPeriod),
 			macd,
 			slowPeriod,
-		), nil
+		)
+		calc.series = series
+		return calc, nil
 	}
 }
 
@@ -74,11 +86,13 @@ func CreateTechanATR(period int) func() (Calculator, error) {
 		series := techan.NewTimeSeries()
 		atr := techan.NewAverageTrueRangeIndicator(series, period)
 
-		return NewTechanCalculator(
+		calc := NewTechanCalculator(
 			fmt.Sprintf("atr_%d", period),
 			atr,
 			period,
-		), nil
+		)
+		calc.series = series
+		return calc, nil
 	}
 }
 
@@ -92,11 +106,13 @@ func CreateTechanBollingerBands(period int, multiplier float64) func() (Calculat
 		// Note: We use SMA as the main indicator, but BB could be extended later
 		_ = techan.NewBollingerUpperBandIndicator(sma, period, multiplier)
 
-		return NewTechanCalculator(
+		calc := NewTechanCalculator(
 			fmt.Sprintf("bb_%d_%.1f", period, multiplier),
 			sma, // Use SMA as the main indicator
 			period,
-		), nil
+		)
+		calc.series = series
+		return calc, nil
 	}
 }
 
@@ -107,11 +123,13 @@ func CreateTechanStochastic(kPeriod, dPeriod, smoothK int) func() (Calculator, e
 		stochastic := techan.NewFastStochasticIndicator(series, kPeriod)
 		// Note: Techan's FastStochastic uses kPeriod, D and smoothing are separate
 
-		return NewTechanCalculator(
+		calc := NewTechanCalculator(
 			fmt.Sprintf("stoch_%d_%d_%d", kPeriod, dPeriod, smoothK),
 			stochastic,
 			kPeriod,
-		), nil
+		)
+		calc.series = series
+		return calc, nil
 	}
 }
 
