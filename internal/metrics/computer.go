@@ -15,6 +15,27 @@ type SymbolStateSnapshot struct {
 	Indicators    map[string]float64
 	LastTickTime  time.Time
 	LastUpdate    time.Time
+
+	// Session tracking
+	CurrentSession   string // MarketSession as string
+	SessionStartTime time.Time
+
+	// Price references
+	YesterdayClose float64
+	TodayOpen      float64
+	TodayClose     float64
+
+	// Session-specific volume tracking
+	PremarketVolume int64
+	MarketVolume    int64
+	PostmarketVolume int64
+
+	// Trade count tracking
+	TradeCount       int64
+	TradeCountHistory []int64
+
+	// Candle direction tracking
+	CandleDirections map[string][]bool // timeframe -> []bool
 }
 
 // MetricComputer computes a metric value from symbol state

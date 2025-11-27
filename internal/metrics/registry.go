@@ -100,7 +100,59 @@ func (r *Registry) registerBuiltInMetrics() {
 
 	// Price change metrics (depend on finalized bars)
 	r.Register(NewPriceChangeComputer("price_change_1m_pct", 2))
+	r.Register(NewPriceChangeComputer("price_change_2m_pct", 3))
 	r.Register(NewPriceChangeComputer("price_change_5m_pct", 6))
 	r.Register(NewPriceChangeComputer("price_change_15m_pct", 16))
+	r.Register(NewPriceChangeComputer("price_change_30m_pct", 31))
+	r.Register(NewPriceChangeComputer("price_change_60m_pct", 61))
+
+	// Price filters - Change ($) with timeframes
+	r.Register(NewChangeComputer("change_1m", 2))
+	r.Register(NewChangeComputer("change_2m", 3))
+	r.Register(NewChangeComputer("change_5m", 6))
+	r.Register(NewChangeComputer("change_15m", 16))
+	r.Register(NewChangeComputer("change_30m", 31))
+	r.Register(NewChangeComputer("change_60m", 61))
+
+	// Price filters - Change from Close
+	r.Register(&ChangeFromCloseComputer{})
+	r.Register(&ChangeFromClosePctComputer{})
+
+	// Price filters - Change from Close (Premarket)
+	r.Register(&ChangeFromClosePremarketComputer{})
+	r.Register(&ChangeFromClosePremarketPctComputer{})
+
+	// Price filters - Change from Close (Post Market)
+	r.Register(&ChangeFromClosePostmarketComputer{})
+	r.Register(&ChangeFromClosePostmarketPctComputer{})
+
+	// Price filters - Change from Open
+	r.Register(&ChangeFromOpenComputer{})
+	r.Register(&ChangeFromOpenPctComputer{})
+
+	// Price filters - Gap from Close
+	r.Register(&GapFromCloseComputer{})
+	r.Register(&GapFromClosePctComputer{})
+
+	// Volume filters - Session-specific
+	r.Register(&PostmarketVolumeComputer{})
+	r.Register(&PremarketVolumeComputer{})
+
+	// Volume filters - Absolute Volume with timeframes
+	r.Register(NewAbsoluteVolumeComputer("volume_1m", 1))
+	r.Register(NewAbsoluteVolumeComputer("volume_2m", 2))
+	r.Register(NewAbsoluteVolumeComputer("volume_5m", 5))
+	r.Register(NewAbsoluteVolumeComputer("volume_10m", 10))
+	r.Register(NewAbsoluteVolumeComputer("volume_15m", 15))
+	r.Register(NewAbsoluteVolumeComputer("volume_30m", 30))
+	r.Register(NewAbsoluteVolumeComputer("volume_60m", 60))
+	r.Register(&DailyVolumeComputer{})
+
+	// Volume filters - Dollar Volume with timeframes
+	r.Register(NewDollarVolumeComputer("dollar_volume_1m", 1))
+	r.Register(NewDollarVolumeComputer("dollar_volume_5m", 5))
+	r.Register(NewDollarVolumeComputer("dollar_volume_15m", 15))
+	r.Register(NewDollarVolumeComputer("dollar_volume_60m", 60))
+	r.Register(&DailyDollarVolumeComputer{})
 }
 

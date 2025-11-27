@@ -67,7 +67,7 @@ func (t *TechanCalculator) Update(bar *models.Bar1m) (float64, error) {
 	// Try to calculate the indicator value
 	value := t.indicator.Calculate(lastIndex)
 	valueFloat := value.Float()
-	
+
 	// Check if the value is valid
 	// Techan indicators return 0 until they have enough data
 	// For EMA/SMA: need period bars, for RSI: need period+1 bars

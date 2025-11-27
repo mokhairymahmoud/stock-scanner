@@ -1,0 +1,758 @@
+# Phase 5.3: Filter Implementation Plan
+
+## Overview
+
+This document provides a detailed implementation plan for Phase 5.3: Filter Implementation. The goal is to implement comprehensive filter support for all filter types shown in the UI, supporting volume thresholds, timeframes, session-based filtering, and value types.
+
+## Current State Analysis
+
+### ✅ What's Already Implemented
+
+1. **Metrics Registry System**
+   - `MetricComputer` interface for computing metrics
+   - `Registry` for managing and computing all metrics
+   - Integration with scanner's `getMetricsFromSnapshot`
+   - Basic metrics: `price`, `volume_live`, `vwap_live`, `close`, `open`, `high`, `low`, `volume`, `vwap`
+   - Price change metrics: `price_change_1m_pct`, `price_change_2m_pct`, `price_change_5m_pct`, `price_change_15m_pct`, `price_change_30m_pct`, `price_change_60m_pct`
+
+2. **Symbol State Management**
+   - `SymbolState` with `LiveBar`, `LastFinalBars` (ring buffer), `Indicators`
+   - Thread-safe state management
+   - Snapshot mechanism for lock-free scanning
+   - **NEW:** Session tracking (Pre-Market, Market, Post-Market)
+   - **NEW:** Price references (YesterdayClose, TodayOpen, TodayClose)
+   - **NEW:** Session-specific volume tracking (PremarketVolume, MarketVolume, PostmarketVolume)
+   - **NEW:** Trade count tracking
+   - **NEW:** Candle direction tracking
+
+3. **Indicator Engine**
+   - RSI, EMA, SMA, MACD, ATR, Bollinger Bands, Stochastic (via Techan)
+   - VWAP, Volume Average, Price Change (custom)
+   - Indicators stored in `SymbolState.Indicators` map
+
+4. **Session Detection** ✅ NEW
+   - Market session detection (Pre-Market: 4:00-9:30, Market: 9:30-16:00, Post-Market: 16:00-20:00 ET)
+   - Timezone handling (ET to UTC conversion)
+   - Session transition detection
+   - Helper functions (IsMarketOpen, MinutesSinceMarketOpen, etc.)
+
+5. **Core Price Filters** ✅ NEW (Phase 1 Complete)
+   - Change ($) with timeframes (1m, 2m, 5m, 15m, 30m, 60m)
+   - Change from Close ($ and %)
+   - Change from Close (Premarket) ($ and %)
+   - Change from Close (Post Market) ($ and %)
+   - Change from Open ($ and %)
+   - Gap from Close ($ and %)
+
+6. **Core Volume Filters** ✅ NEW (Phase 1 Complete)
+   - Postmarket Volume
+   - Premarket Volume
+   - Absolute Volume with timeframes (1m, 2m, 5m, 10m, 15m, 30m, 60m, daily)
+   - Absolute Dollar Volume with timeframes (1m, 5m, 15m, 60m, daily)
+
+### ❌ What Still Needs to Be Implemented
+
+1. **Filter Metrics** (Remaining ~35 filter types)
+   - Range filters (5 types) - Phase 2
+   - Technical indicator filters (5 types) - Phase 2
+   - Advanced volume filters (3 types) - Phase 3
+   - Trading activity filters (2 types) - Phase 3
+   - Time-based filters (5 types) - Phase 4
+   - Fundamental data filters (6 types) - Phase 5
+
+2. **Filter Infrastructure** (Remaining)
+   - Volume threshold enforcement in rule evaluation - Phase 6
+   - Session-based filtering in rule evaluation - Phase 6
+   - Timeframe support in rule parser - Phase 6
+   - Value type variants already implemented in metrics
+
+## Implementation Phases
+
+### Phase 1: Foundation & Core Price/Volume Filters (Priority: HIGH)
+
+**Goal**: Implement infrastructure and most commonly used filters
+
+#### 1.1 Extend Symbol State (Week 1, Days 1-2) ✅ COMPLETE
+
+**Tasks:**
+- [x] Add session tracking to `SymbolState`
+  - [x] `CurrentSession` field (PreMarket, Market, PostMarket)
+  - [x] `SessionStartTime` field
+- [x] Add price reference fields
+  - [x] `YesterdayClose` field
+  - [x] `TodayOpen` field
+  - [x] `TodayClose` field (for postmarket)
+- [x] Add session-specific volume tracking
+  - [x] `PremarketVolume` field
+  - [x] `PostmarketVolume` field
+  - [x] `MarketVolume` field
+- [x] Add trade count tracking
+  - [x] `TradeCount` field (incremented on each tick)
+  - [x] `TradeCountHistory` ring buffer (for timeframe-based counts)
+- [x] Add candle direction tracking
+  - [x] `CandleDirections` map (timeframe -> direction history)
+
+**Files to Modify:**
+- `internal/scanner/state.go` - Extend `SymbolState` struct
+- `internal/scanner/tick_consumer.go` - Update session tracking and trade count
+- `internal/scanner/bar_handler.go` - Update session tracking and candle direction
+
+**New Files:**
+- `internal/scanner/session.go` - Session detection utilities
+
+#### 1.2 Session Detection (Week 1, Day 2) ✅ COMPLETE
+
+**Tasks:**
+- [x] Implement session detection logic
+  - [x] Pre-Market: 4:00 AM - 9:30 AM ET
+  - [x] Market: 9:30 AM - 4:00 PM ET
+  - [x] Post-Market: 4:00 PM - 8:00 PM ET
+- [x] Add session transition detection
+- [x] Reset session-specific data on session transitions
+- [x] Handle timezone conversions (ET to UTC)
+
+**Files to Create:**
+- `internal/scanner/session.go` - Session detection functions
+
+**Files to Modify:**
+- `internal/scanner/tick_consumer.go` - Check and update session on tick
+- `internal/scanner/bar_handler.go` - Check and update session on bar finalization
+
+#### 1.3 Core Price Filters (Week 1, Days 3-4) ✅ COMPLETE
+
+**Tasks:**
+- [x] Implement Change ($) filter with timeframes
+  - [x] Metrics: `change_1m`, `change_2m`, `change_5m`, `change_15m`, `change_30m`, `change_60m`
+  - [x] Computer: `ChangeComputer` with timeframe parameter
+- [x] Implement Change from Close filter
+  - [x] Metrics: `change_from_close`, `change_from_close_pct`
+  - [x] Computer: `ChangeFromCloseComputer`
+- [x] Implement Change from Close (Premarket) filter
+  - [x] Metrics: `change_from_close_premarket`, `change_from_close_premarket_pct`
+  - [x] Computer: `ChangeFromClosePremarketComputer` (with session check)
+- [x] Implement Change from Close (Post Market) filter
+  - [x] Metrics: `change_from_close_postmarket`, `change_from_close_postmarket_pct`
+  - [x] Computer: `ChangeFromClosePostmarketComputer` (with session check)
+- [x] Implement Change from Open filter
+  - [x] Metrics: `change_from_open`, `change_from_open_pct`
+  - [x] Computer: `ChangeFromOpenComputer`
+- [x] Extend Percentage Change (%) filter
+  - [x] Add timeframes: `change_pct_2m`, `change_pct_30m`, `change_pct_60m` (2h, 4h pending for Phase 2)
+  - [x] Extend `PriceChangeComputer` to support more timeframes
+- [x] Implement Gap from Close filter
+  - [x] Metrics: `gap_from_close`, `gap_from_close_pct`
+  - [x] Computer: `GapFromCloseComputer`
+
+**Files to Create:**
+- `internal/metrics/price_filters.go` - All price filter computers
+
+**Files to Modify:**
+- `internal/metrics/registry.go` - Register new price filter computers
+- `internal/metrics/price_change_metrics.go` - Extend for more timeframes
+
+#### 1.4 Core Volume Filters (Week 1, Days 4-5) ✅ COMPLETE
+
+**Tasks:**
+- [x] Implement Postmarket Volume tracking
+  - [x] Metric: `postmarket_volume`
+  - [x] Computer: `PostmarketVolumeComputer`
+  - [x] Update volume tracking in tick consumer
+- [x] Implement Premarket Volume tracking
+  - [x] Metric: `premarket_volume`
+  - [x] Computer: `PremarketVolumeComputer`
+- [x] Extend Absolute Volume filter
+  - [x] Metrics: `volume_1m`, `volume_2m`, `volume_5m`, `volume_10m`, `volume_15m`, `volume_30m`, `volume_60m`, `volume_daily`
+  - [x] Computer: `AbsoluteVolumeComputer` with timeframe parameter
+- [x] Implement Absolute Dollar Volume filter
+  - [x] Metrics: `dollar_volume_1m`, `dollar_volume_5m`, `dollar_volume_15m`, `dollar_volume_60m`, `dollar_volume_daily`
+  - [x] Computer: `DollarVolumeComputer` with timeframe parameter
+
+**Files to Create:**
+- `internal/metrics/volume_filters.go` - All volume filter computers
+
+**Files to Modify:**
+- `internal/scanner/tick_consumer.go` - Track session-specific volumes
+- `internal/metrics/registry.go` - Register new volume filter computers
+
+#### 1.5 Testing & Validation (Week 1, Day 5) ✅ COMPLETE
+
+**Tasks:**
+- [x] Unit tests for session detection
+- [x] Unit tests for all price filter computers
+- [x] Unit tests for all volume filter computers
+- [ ] Integration tests for session transitions (deferred to Phase 7)
+- [ ] Integration tests for price/volume metrics in scan loop (deferred to Phase 7)
+
+**Files to Create:**
+- `internal/scanner/session_test.go`
+- `internal/metrics/price_filters_test.go`
+- `internal/metrics/volume_filters_test.go`
+
+### Phase 1 Completion Summary
+
+**Status:** ✅ Complete
+
+**Deliverables:**
+- ✅ Session detection utilities (`internal/scanner/session.go`)
+  - Market session detection (Pre-Market, Market, Post-Market, Closed)
+  - Timezone handling (ET to UTC conversion)
+  - Helper functions (IsMarketOpen, MinutesSinceMarketOpen, GetMarketOpenTime, GetMarketCloseTime)
+- ✅ Extended SymbolState (`internal/scanner/state.go`)
+  - Session tracking (CurrentSession, SessionStartTime)
+  - Price references (YesterdayClose, TodayOpen, TodayClose)
+  - Session-specific volume tracking (PremarketVolume, MarketVolume, PostmarketVolume)
+  - Trade count tracking (TradeCount, TradeCountHistory)
+  - Candle direction tracking (CandleDirections map)
+- ✅ Session transition handling
+  - Automatic session detection on tick/bar processing
+  - Session-specific data reset on transitions
+  - Volume tracking per session
+- ✅ Core Price Filters (`internal/metrics/price_filters.go`)
+  - Change ($) with timeframes: `change_1m`, `change_2m`, `change_5m`, `change_15m`, `change_30m`, `change_60m`
+  - Change from Close: `change_from_close`, `change_from_close_pct`
+  - Change from Close (Premarket): `change_from_close_premarket`, `change_from_close_premarket_pct`
+  - Change from Close (Post Market): `change_from_close_postmarket`, `change_from_close_postmarket_pct`
+  - Change from Open: `change_from_open`, `change_from_open_pct`
+  - Gap from Close: `gap_from_close`, `gap_from_close_pct`
+  - Extended price change metrics: `price_change_2m_pct`, `price_change_30m_pct`, `price_change_60m_pct`
+- ✅ Core Volume Filters (`internal/metrics/volume_filters.go`)
+  - Postmarket Volume: `postmarket_volume`
+  - Premarket Volume: `premarket_volume`
+  - Absolute Volume: `volume_1m`, `volume_2m`, `volume_5m`, `volume_10m`, `volume_15m`, `volume_30m`, `volume_60m`, `volume_daily`
+  - Dollar Volume: `dollar_volume_1m`, `dollar_volume_5m`, `dollar_volume_15m`, `dollar_volume_60m`, `dollar_volume_daily`
+- ✅ Metrics Registry Integration
+  - All new metric computers registered in `internal/metrics/registry.go`
+  - Extended SymbolStateSnapshot in `internal/metrics/computer.go`
+  - Updated scan loop to include new fields in metric snapshot
+- ✅ Comprehensive Unit Tests
+  - Session detection tests (13 test cases, all passing)
+  - Price filter tests (5 test cases, all passing)
+  - Volume filter tests (5 test cases, all passing)
+
+**Key Features:**
+- Complete session detection with timezone handling
+- Automatic session transitions with data reset
+- 12 price filter metrics (8 filter types with $ and % variants)
+- 11 volume filter metrics (4 filter types with multiple timeframes)
+- Thread-safe state management
+- All tests passing
+
+**Verification:**
+- All code compiles successfully
+- All unit tests pass (23+ test cases)
+- Session detection working correctly
+- Price and volume filters computing correctly
+- No linter errors
+
+**Next Steps:**
+- Phase 2: Range & Technical Indicator Filters
+- Phase 3: Advanced Volume & Trading Activity Filters
+
+---
+
+### Phase 2: Range & Technical Indicator Filters (Priority: HIGH)
+
+**Goal**: Implement range calculations and technical indicator distance metrics
+
+#### 2.1 Range Filters (Week 2, Days 1-2)
+
+**Tasks:**
+- [ ] Implement Range ($) filter
+  - [ ] Metrics: `range_2m`, `range_5m`, `range_10m`, `range_15m`, `range_30m`, `range_60m`, `range_today`, `range_5d`, `range_10d`
+  - [ ] Computer: `RangeComputer` with timeframe parameter
+  - [ ] Track high/low over timeframes
+- [ ] Implement Percentage Range (%) filter
+  - [ ] Metrics: `range_pct_2m`, `range_pct_5m`, `range_pct_10m`, `range_pct_15m`, `range_pct_30m`, `range_pct_60m`, `range_pct_today`, `range_pct_20d`
+  - [ ] Computer: `RangePercentageComputer` with timeframe parameter
+- [ ] Implement Position in Range (%) filter
+  - [ ] Metrics: `position_in_range_2m`, `position_in_range_5m`, `position_in_range_15m`, `position_in_range_30m`, `position_in_range_60m`, `position_in_range_today`, `position_in_range_5d`, `position_in_range_10d`, `position_in_range_20d`, `position_in_range_1y`
+  - [ ] Computer: `PositionInRangeComputer` with timeframe parameter
+
+**Files to Create:**
+- `internal/metrics/range_filters.go` - All range filter computers
+
+**Files to Modify:**
+- `internal/metrics/registry.go` - Register range filter computers
+
+#### 2.2 Technical Indicator Filters (Week 2, Days 2-3)
+
+**Tasks:**
+- [ ] Extend RSI(14) to support multiple timeframes
+  - [ ] Metrics: `rsi_14_1m`, `rsi_14_2m`, `rsi_14_5m`, `rsi_14_15m`, `rsi_14_daily`
+  - [ ] Update indicator engine to compute RSI per timeframe
+  - [ ] Note: This may require indicator engine changes
+- [ ] Implement ATR(14) calculation in indicator engine
+  - [ ] Add ATR(14) to indicator registry
+  - [ ] Metrics: `atr_14_1m`, `atr_14_5m`, `atr_14_daily`
+- [ ] Implement ATRP(14) calculation
+  - [ ] Metrics: `atrp_14_1m`, `atrp_14_5m`, `atrp_14_daily`
+  - [ ] Computer: `ATRPComputer` (uses ATR from indicators)
+- [ ] Extend Distance from VWAP filter
+  - [ ] Metrics: `vwap_dist`, `vwap_dist_pct` (already partially implemented)
+  - [ ] Ensure all VWAP timeframes supported (5m, 15m, 1h)
+- [ ] Implement Distance from Moving Average filter
+  - [ ] Metrics for each MA type:
+    - [ ] `ma_dist_sma20_daily_pct`, `ma_dist_sma10_daily_pct`, `ma_dist_sma200_daily_pct`
+    - [ ] `ma_dist_ema20_1m_pct`, `ma_dist_ema9_1m_pct`, `ma_dist_ema9_5m_pct`, `ma_dist_ema9_15m_pct`
+    - [ ] `ma_dist_ema21_15m_pct`, `ma_dist_ema9_60m_pct`, `ma_dist_ema21_60m_pct`
+    - [ ] `ma_dist_ema50_15m_pct`, `ma_dist_ema50_daily_pct`
+  - [ ] Computer: `MADistanceComputer` with MA type and timeframe parameters
+
+**Files to Create:**
+- `internal/metrics/indicator_filters.go` - Indicator distance computers
+
+**Files to Modify:**
+- `pkg/indicator/techan_adapter.go` - Add ATR support if needed
+- `internal/indicator/engine.go` - Add ATR calculation
+- `internal/metrics/registry.go` - Register indicator filter computers
+
+#### 2.3 Testing & Validation (Week 2, Day 3)
+
+**Tasks:**
+- [ ] Unit tests for range filter computers
+- [ ] Unit tests for indicator filter computers
+- [ ] Integration tests for range calculations
+- [ ] Integration tests for indicator distances
+
+**Files to Create:**
+- `internal/metrics/range_filters_test.go`
+- `internal/metrics/indicator_filters_test.go`
+
+---
+
+### Phase 3: Advanced Volume & Trading Activity Filters (Priority: MEDIUM)
+
+**Goal**: Implement relative volume calculations and trading activity metrics
+
+#### 3.1 Advanced Volume Filters (Week 2, Days 4-5)
+
+**Tasks:**
+- [ ] Implement Average Volume filter (5d, 10d, 20d)
+  - [ ] Store historical daily volumes in `SymbolState`
+  - [ ] Metrics: `avg_volume_5d`, `avg_volume_10d`, `avg_volume_20d`
+  - [ ] Computer: `AverageVolumeComputer` with day parameter
+  - [ ] Requires historical data retrieval from TimescaleDB
+- [ ] Implement Relative Volume (%) filter
+  - [ ] Track average volume of last 10 candles per timeframe
+  - [ ] Implement volume forecasting for intraday timeframes
+  - [ ] Metrics: `relative_volume_1m`, `relative_volume_2m`, `relative_volume_5m`, `relative_volume_15m`, `relative_volume_daily`
+  - [ ] Computer: `RelativeVolumeComputer` with timeframe parameter
+- [ ] Implement Relative Volume (%) at Same Time filter
+  - [ ] Store historical volume patterns by time of day
+  - [ ] Compute average volume at same time of day over last N days
+  - [ ] Metric: `relative_volume_same_time`
+  - [ ] Computer: `RelativeVolumeSameTimeComputer`
+  - [ ] Requires time-of-day pattern storage
+
+**Files to Create:**
+- `internal/metrics/advanced_volume_filters.go` - Advanced volume computers
+- `internal/scanner/historical_data.go` - Historical data management
+
+**Files to Modify:**
+- `internal/scanner/state.go` - Add historical volume storage
+- `internal/metrics/registry.go` - Register advanced volume computers
+
+#### 3.2 Trading Activity Filters (Week 2, Day 5)
+
+**Tasks:**
+- [ ] Implement Trade Count filter
+  - [ ] Metrics: `trade_count_1m`, `trade_count_2m`, `trade_count_5m`, `trade_count_15m`, `trade_count_60m`
+  - [ ] Computer: `TradeCountComputer` with timeframe parameter
+  - [ ] Track trade count history in `SymbolState`
+- [ ] Implement Consecutive Candles filter
+  - [ ] Track candle direction (green/red) from finalized bars
+  - [ ] Count consecutive candles of same direction
+  - [ ] Metrics: `consecutive_candles_1m`, `consecutive_candles_2m`, `consecutive_candles_5m`, `consecutive_candles_15m`, `consecutive_candles_daily`
+  - [ ] Computer: `ConsecutiveCandlesComputer` with timeframe parameter
+  - [ ] Positive for green, negative for red
+
+**Files to Create:**
+- `internal/metrics/activity_filters.go` - Trading activity computers
+
+**Files to Modify:**
+- `internal/scanner/tick_consumer.go` - Increment trade count on tick
+- `internal/scanner/bar_handler.go` - Track candle direction
+- `internal/scanner/state.go` - Add trade count and candle direction tracking
+- `internal/metrics/registry.go` - Register activity filter computers
+
+#### 3.3 Testing & Validation (Week 2, Day 5)
+
+**Tasks:**
+- [ ] Unit tests for advanced volume filter computers
+- [ ] Unit tests for activity filter computers
+- [ ] Integration tests for relative volume calculations
+- [ ] Integration tests for trade count and consecutive candles
+
+**Files to Create:**
+- `internal/metrics/advanced_volume_filters_test.go`
+- `internal/metrics/activity_filters_test.go`
+
+---
+
+### Phase 4: Time-Based & Relative Range Filters (Priority: MEDIUM)
+
+**Goal**: Implement time-based calculations and relative range metrics
+
+#### 4.1 Time-Based Filters (Week 3, Days 1-2)
+
+**Tasks:**
+- [ ] Implement Minutes in Market filter
+  - [ ] Calculate minutes since market open (9:30 AM ET)
+  - [ ] Metric: `minutes_in_market`
+  - [ ] Computer: `MinutesInMarketComputer`
+  - [ ] Handle premarket/postmarket edge cases
+- [ ] Implement Minutes Since News filter
+  - [ ] Integrate news data source (placeholder for now)
+  - [ ] Store last news timestamp per symbol
+  - [ ] Metric: `minutes_since_news`
+  - [ ] Computer: `MinutesSinceNewsComputer`
+  - [ ] Note: Requires news data integration (can be mocked initially)
+- [ ] Implement Hours Since News filter
+  - [ ] Metric: `hours_since_news`
+  - [ ] Computer: `HoursSinceNewsComputer`
+- [ ] Implement Days Since News filter
+  - [ ] Metric: `days_since_news`
+  - [ ] Computer: `DaysSinceNewsComputer`
+- [ ] Implement Days Until Earnings filter
+  - [ ] Integrate earnings calendar data source (placeholder for now)
+  - [ ] Store next earnings date per symbol
+  - [ ] Metric: `days_until_earnings`
+  - [ ] Computer: `DaysUntilEarningsComputer`
+  - [ ] Note: Requires earnings calendar integration (can be mocked initially)
+
+**Files to Create:**
+- `internal/metrics/time_filters.go` - Time-based filter computers
+- `internal/scanner/external_data.go` - External data interface (news, earnings)
+
+**Files to Modify:**
+- `internal/scanner/state.go` - Add news/earnings data storage
+- `internal/metrics/registry.go` - Register time filter computers
+
+#### 4.2 Relative Range Filter (Week 3, Day 2)
+
+**Tasks:**
+- [ ] Implement Relative Range (%) filter
+  - [ ] Compute today's range
+  - [ ] Get ATR(14) daily value from indicators
+  - [ ] Calculate: `relative_range = (today_range / atr_14_daily) * 100`
+  - [ ] Metric: `relative_range_pct`
+  - [ ] Computer: `RelativeRangeComputer`
+
+**Files to Modify:**
+- `internal/metrics/range_filters.go` - Add relative range computer
+
+#### 4.3 Biggest Range Filter (Week 3, Day 2)
+
+**Tasks:**
+- [ ] Implement Biggest Range (%) filter
+  - [ ] Store historical range data for longer periods (3m, 6m, 1y)
+  - [ ] Compute maximum range over period
+  - [ ] Metrics: `biggest_range_3m`, `biggest_range_6m`, `biggest_range_1y`
+  - [ ] Computer: `BiggestRangeComputer` with period parameter
+  - [ ] Requires historical data storage/retrieval
+
+**Files to Modify:**
+- `internal/metrics/range_filters.go` - Add biggest range computer
+- `internal/scanner/historical_data.go` - Add historical range storage
+
+#### 4.4 Testing & Validation (Week 3, Day 2)
+
+**Tasks:**
+- [ ] Unit tests for time-based filter computers
+- [ ] Unit tests for relative range and biggest range computers
+- [ ] Integration tests for time calculations
+- [ ] Mock tests for news/earnings integration
+
+**Files to Create:**
+- `internal/metrics/time_filters_test.go`
+
+---
+
+### Phase 5: Fundamental Data Filters (Priority: LOW)
+
+**Goal**: Implement fundamental data filters (requires external data integration)
+
+#### 5.1 Fundamental Data Integration (Week 3, Days 3-4)
+
+**Tasks:**
+- [ ] Design fundamental data provider interface
+  - [ ] `FundamentalDataProvider` interface
+  - [ ] Methods: `GetMarketCap`, `GetFloat`, `GetSharesOutstanding`, etc.
+- [ ] Implement mock provider for testing
+- [ ] Integrate with external data provider (Alpha Vantage, Polygon.io, etc.)
+  - [ ] Note: Can be deferred to later, use mock for now
+- [ ] Add fundamental data caching layer
+  - [ ] Cache data in Redis with appropriate TTLs
+  - [ ] Update frequency: MarketCap (weekly), others (as needed)
+
+**Files to Create:**
+- `internal/data/fundamental_provider.go` - Fundamental data provider interface
+- `internal/data/mock_fundamental_provider.go` - Mock implementation
+- `internal/data/alpha_vantage_provider.go` - Alpha Vantage implementation (optional)
+
+#### 5.2 Fundamental Data Filters (Week 3, Days 4-5)
+
+**Tasks:**
+- [ ] Implement Institutional Ownership filter
+  - [ ] Metric: `institutional_ownership_pct`
+  - [ ] Computer: `InstitutionalOwnershipComputer`
+- [ ] Implement MarketCap filter
+  - [ ] Metric: `marketcap`
+  - [ ] Computer: `MarketCapComputer`
+- [ ] Implement Shares Outstanding filter
+  - [ ] Metric: `shares_outstanding`
+  - [ ] Computer: `SharesOutstandingComputer`
+- [ ] Implement Short Interest (%) filter
+  - [ ] Metric: `short_interest_pct`
+  - [ ] Computer: `ShortInterestComputer`
+- [ ] Implement Short Ratio filter
+  - [ ] Metric: `short_ratio`
+  - [ ] Computer: `ShortRatioComputer` (uses short interest + avg volume)
+- [ ] Implement Float filter
+  - [ ] Metric: `float`
+  - [ ] Computer: `FloatComputer`
+
+**Files to Create:**
+- `internal/metrics/fundamental_filters.go` - Fundamental filter computers
+
+**Files to Modify:**
+- `internal/scanner/state.go` - Add fundamental data storage
+- `internal/metrics/registry.go` - Register fundamental filter computers
+
+#### 5.3 Testing & Validation (Week 3, Day 5)
+
+**Tasks:**
+- [ ] Unit tests for fundamental filter computers
+- [ ] Integration tests with mock provider
+- [ ] Cache tests for fundamental data
+
+**Files to Create:**
+- `internal/metrics/fundamental_filters_test.go`
+
+---
+
+### Phase 6: Filter Configuration & Infrastructure (Priority: HIGH)
+
+**Goal**: Implement filter configuration support (volume threshold, session, timeframe, value type)
+
+#### 6.1 Volume Threshold Enforcement (Week 4, Days 1-2)
+
+**Tasks:**
+- [ ] Extend rule conditions to support volume threshold
+  - [ ] Add optional `volume_threshold` field to `Condition` struct
+  - [ ] Update rule parser to support volume threshold
+- [ ] Implement volume threshold pre-filtering in scan loop
+  - [ ] Check volume threshold before evaluating rule conditions
+  - [ ] Skip rule evaluation if volume < threshold
+- [ ] Support per-filter volume threshold configuration
+  - [ ] Add volume threshold to filter metadata
+  - [ ] Use default threshold if not specified
+
+**Files to Modify:**
+- `internal/models/models.go` - Add volume threshold to Condition
+- `internal/rules/parser.go` - Parse volume threshold
+- `internal/scanner/scan_loop.go` - Implement volume threshold check
+
+#### 6.2 Session-Based Filtering (Week 4, Day 2)
+
+**Tasks:**
+- [ ] Extend rule conditions to support "Calculated During" configuration
+  - [ ] Add optional `calculated_during` field to `Condition` struct
+  - [ ] Values: `premarket`, `market`, `postmarket`, `all`
+- [ ] Implement session check in scan loop
+  - [ ] Check session before evaluating rule conditions
+  - [ ] Skip evaluation if not in configured session
+- [ ] Update rule parser to support session configuration
+
+**Files to Modify:**
+- `internal/models/models.go` - Add calculated_during to Condition
+- `internal/rules/parser.go` - Parse calculated_during
+- `internal/scanner/scan_loop.go` - Implement session check
+
+#### 6.3 Timeframe Support (Week 4, Day 3)
+
+**Tasks:**
+- [ ] Extend metric naming convention to support timeframes
+  - [ ] Format: `{metric}_{timeframe}` (e.g., `change_5m`, `volume_15m`)
+- [ ] Update rule parser to support timeframe selection
+  - [ ] Parse timeframe from metric name or condition parameter
+- [ ] Add timeframe validation in rule validation
+  - [ ] Validate timeframe is supported for the metric
+- [ ] Support timeframe in metric resolver
+  - [ ] Handle timeframe-based metric lookups
+
+**Files to Modify:**
+- `internal/rules/parser.go` - Parse timeframes
+- `internal/rules/validation.go` - Validate timeframes
+- `internal/rules/metrics.go` - Support timeframe in metric resolver
+
+#### 6.4 Value Type Support (Week 4, Day 3)
+
+**Tasks:**
+- [ ] Support both absolute ($) and percentage (%) variants
+  - [ ] Add both metrics: `{metric}` and `{metric}_pct` where applicable
+- [ ] Update rule parser to support value type selection
+  - [ ] Parse value type from metric name or condition parameter
+- [ ] Add value type validation
+  - [ ] Validate value type is supported for the metric
+
+**Files to Modify:**
+- `internal/rules/parser.go` - Parse value types
+- `internal/rules/validation.go` - Validate value types
+
+#### 6.5 Testing & Validation (Week 4, Day 4)
+
+**Tasks:**
+- [ ] Unit tests for volume threshold enforcement
+- [ ] Unit tests for session-based filtering
+- [ ] Unit tests for timeframe support
+- [ ] Unit tests for value type support
+- [ ] Integration tests for filter configuration
+
+**Files to Create:**
+- `internal/rules/filter_config_test.go`
+
+---
+
+### Phase 7: Performance Optimization (Priority: MEDIUM)
+
+**Goal**: Optimize metric computation to maintain <800ms scan cycle target
+
+#### 7.1 Metric Computation Optimization (Week 4, Days 4-5)
+
+**Tasks:**
+- [ ] Implement lazy metric computation
+  - [ ] Only compute metrics when needed for rule evaluation
+  - [ ] Cache computed metrics in `SymbolState`
+- [ ] Batch metric computations in scan loop
+  - [ ] Compute multiple metrics in single pass where possible
+- [ ] Optimize historical data lookups
+  - [ ] Use efficient ring buffers
+  - [ ] Limit historical data storage to necessary periods
+- [ ] Profile metric computation performance
+  - [ ] Identify hot paths
+  - [ ] Optimize allocations
+
+**Files to Modify:**
+- `internal/scanner/state.go` - Add metric caching
+- `internal/scanner/scan_loop.go` - Optimize metric computation
+- `internal/metrics/registry.go` - Optimize computation order
+
+#### 7.2 Historical Data Management (Week 4, Day 5)
+
+**Tasks:**
+- [ ] Implement efficient ring buffer for recent bars
+  - [ ] Already implemented, verify efficiency
+- [ ] Add historical data retrieval from TimescaleDB
+  - [ ] For multi-day calculations (average volume, biggest range)
+  - [ ] Cache historical data in memory
+- [ ] Implement data expiration/cleanup
+  - [ ] Remove old data that's no longer needed
+  - [ ] Limit memory usage
+
+**Files to Create:**
+- `internal/scanner/historical_data.go` - Historical data management
+
+**Files to Modify:**
+- `internal/scanner/rehydration.go` - Load historical data on startup
+
+#### 7.3 Performance Testing (Week 4, Day 5)
+
+**Tasks:**
+- [ ] Performance tests with all filters enabled
+  - [ ] Measure scan cycle time impact
+  - [ ] Test with varying symbol counts (1000, 2000, 5000)
+  - [ ] Test with varying rule counts (1, 10, 50, 100)
+- [ ] Benchmark metric computation
+  - [ ] Compare before/after optimization
+- [ ] Ensure scan cycle time remains <800ms
+
+**Files to Create:**
+- `tests/performance/filter_performance_test.go`
+
+---
+
+## Implementation Checklist
+
+### Week 1: Foundation & Core Filters ✅ COMPLETE
+- [x] Extend Symbol State (session, price refs, volumes, trade count)
+- [x] Implement session detection
+- [x] Implement core price filters (8 types)
+- [x] Implement core volume filters (4 types)
+- [x] Unit tests for all new components
+
+### Week 2: Range & Advanced Filters
+- [ ] Implement range filters (3 types)
+- [ ] Implement technical indicator filters (5 types)
+- [ ] Implement advanced volume filters (3 types)
+- [ ] Implement trading activity filters (2 types)
+- [ ] Unit tests for all new components
+
+### Week 3: Time-Based & Fundamental Filters
+- [ ] Implement time-based filters (5 types)
+- [ ] Implement relative/biggest range filters (2 types)
+- [ ] Implement fundamental data integration (interface + mock)
+- [ ] Implement fundamental filters (6 types)
+- [ ] Unit tests for all new components
+
+### Week 4: Configuration & Optimization
+- [ ] Implement volume threshold enforcement
+- [ ] Implement session-based filtering
+- [ ] Implement timeframe support
+- [ ] Implement value type support
+- [ ] Performance optimization
+- [ ] Performance testing
+
+## Testing Strategy
+
+### Unit Tests
+- Each metric computer should have comprehensive unit tests
+- Test all timeframes for timeframe-based metrics
+- Test edge cases (missing data, zero values, etc.)
+- Test session transitions
+- Test value type variants ($ and %)
+
+### Integration Tests
+- Test metric computation in scan loop
+- Test filter evaluation with real rules
+- Test session-based filtering
+- Test volume threshold enforcement
+- Test timeframe selection
+- Test value type selection
+
+### Performance Tests
+- Measure scan cycle time with all filters enabled
+- Test with varying symbol counts
+- Test with varying rule counts
+- Benchmark metric computation
+- Ensure <800ms scan cycle target
+
+## Success Criteria
+
+1. ✅ All filter types implemented and tested
+2. ✅ Volume threshold, timeframe, and session support working
+3. ✅ Performance targets maintained (<800ms scan cycle)
+4. ✅ Comprehensive test coverage (>80%)
+5. ✅ Documentation updated
+
+## Risk Mitigation
+
+### Performance Risks
+- **Risk**: Adding 50+ filters may slow down scan cycle
+- **Mitigation**: Lazy computation, caching, profiling, optimization
+
+### Data Storage Risks
+- **Risk**: Historical data storage may consume too much memory
+- **Mitigation**: Efficient ring buffers, data expiration, limit storage periods
+
+### External Data Risks
+- **Risk**: External data providers may be slow or unavailable
+- **Mitigation**: Aggressive caching, mock providers for testing, graceful degradation
+
+## Next Steps
+
+1. Review and approve this implementation plan
+2. Start with Phase 1: Foundation & Core Price/Volume Filters
+3. Set up regular review checkpoints (weekly)
+4. Adjust plan based on learnings
+

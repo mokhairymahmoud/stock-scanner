@@ -18,6 +18,28 @@ type SymbolState struct {
 	LastTickTime  time.Time
 	LastUpdate    time.Time
 	mu            sync.RWMutex
+
+	// Session tracking
+	CurrentSession MarketSession
+	SessionStartTime time.Time
+
+	// Price references
+	YesterdayClose float64 // Yesterday's closing price
+	TodayOpen      float64 // Today's opening price
+	TodayClose     float64 // Today's closing price (set at market close)
+
+	// Session-specific volume tracking
+	PremarketVolume int64 // Volume traded during pre-market session
+	MarketVolume    int64 // Volume traded during market session
+	PostmarketVolume int64 // Volume traded during post-market session
+
+	// Trade count tracking
+	TradeCount      int64 // Total trade count (incremented on each tick)
+	TradeCountHistory []int64 // Ring buffer for timeframe-based trade counts
+
+	// Candle direction tracking (for consecutive candles filter)
+	// Map of timeframe -> direction history (true = green/up, false = red/down)
+	CandleDirections map[string][]bool // timeframe -> []bool
 }
 
 // StateManager manages symbol states for the scanner
@@ -61,9 +83,12 @@ func (sm *StateManager) GetOrCreateState(symbol string) *SymbolState {
 	}
 
 	state = &SymbolState{
-		Symbol:        symbol,
-		LastFinalBars: make([]*models.Bar1m, 0, sm.maxFinalBars),
-		Indicators:    make(map[string]float64),
+		Symbol:           symbol,
+		LastFinalBars:    make([]*models.Bar1m, 0, sm.maxFinalBars),
+		Indicators:       make(map[string]float64),
+		CurrentSession:   SessionClosed,
+		TradeCountHistory: make([]int64, 0),
+		CandleDirections: make(map[string][]bool),
 	}
 
 	sm.states[symbol] = state
@@ -89,6 +114,13 @@ func (sm *StateManager) UpdateLiveBar(symbol string, tick *models.Tick) error {
 	state.mu.Lock()
 	defer state.mu.Unlock()
 
+	// Check and update session
+	newSession := GetMarketSession(tick.Timestamp)
+	if newSession != state.CurrentSession {
+		// Session changed - reset session-specific data if needed
+		sm.handleSessionTransition(state, newSession, tick.Timestamp)
+	}
+
 	// Initialize live bar if needed
 	// Use tick's timestamp to determine which minute it belongs to
 	tickTime := tick.Timestamp
@@ -107,7 +139,55 @@ func (sm *StateManager) UpdateLiveBar(symbol string, tick *models.Tick) error {
 	state.LastTickTime = tick.Timestamp
 	state.LastUpdate = time.Now()
 
+	// Increment trade count
+	state.TradeCount++
+
+	// Update session-specific volume
+	sm.updateSessionVolume(state, tick.Size, newSession)
+
 	return nil
+}
+
+// handleSessionTransition handles transitions between market sessions
+func (sm *StateManager) handleSessionTransition(state *SymbolState, newSession MarketSession, t time.Time) {
+	oldSession := state.CurrentSession
+	state.CurrentSession = newSession
+	state.SessionStartTime = t
+
+	// Reset session-specific volumes when transitioning to a new session
+	// (except when transitioning from premarket to market - keep premarket volume)
+	if newSession == SessionMarket && oldSession == SessionPreMarket {
+		// Keep premarket volume, reset market volume
+		state.MarketVolume = 0
+	} else if newSession == SessionPostMarket && oldSession == SessionMarket {
+		// Keep market volume, reset postmarket volume
+		state.PostmarketVolume = 0
+	} else if newSession == SessionPreMarket {
+		// Reset all volumes when starting premarket (new day)
+		state.PremarketVolume = 0
+		state.MarketVolume = 0
+		state.PostmarketVolume = 0
+		// Store yesterday's close and today's open
+		if state.TodayClose > 0 {
+			state.YesterdayClose = state.TodayClose
+		}
+		// Today's open will be set when first bar is finalized
+	}
+
+	// Reset trade count at start of each session
+	state.TradeCount = 0
+}
+
+// updateSessionVolume updates the appropriate session-specific volume counter
+func (sm *StateManager) updateSessionVolume(state *SymbolState, volume int64, session MarketSession) {
+	switch session {
+	case SessionPreMarket:
+		state.PremarketVolume += volume
+	case SessionMarket:
+		state.MarketVolume += volume
+	case SessionPostMarket:
+		state.PostmarketVolume += volume
+	}
 }
 
 // UpdateFinalizedBar adds a finalized bar to the symbol state
@@ -120,6 +200,26 @@ func (sm *StateManager) UpdateFinalizedBar(bar *models.Bar1m) error {
 
 	state.mu.Lock()
 	defer state.mu.Unlock()
+
+	// Check and update session
+	newSession := GetMarketSession(bar.Timestamp)
+	if newSession != state.CurrentSession {
+		sm.handleSessionTransition(state, newSession, bar.Timestamp)
+	}
+
+	// Track today's open (first bar of the day)
+	if state.TodayOpen == 0 {
+		state.TodayOpen = bar.Open
+	}
+
+	// Track today's close (last bar before market close)
+	if newSession == SessionMarket || (newSession == SessionPostMarket && state.TodayClose == 0) {
+		state.TodayClose = bar.Close
+	}
+
+	// Track candle direction (green = close > open, red = close < open)
+	isGreen := bar.Close > bar.Open
+	sm.updateCandleDirection(state, "1m", isGreen)
 
 	// Add to ring buffer
 	state.LastFinalBars = append(state.LastFinalBars, bar)
@@ -137,6 +237,29 @@ func (sm *StateManager) UpdateFinalizedBar(bar *models.Bar1m) error {
 	state.LastUpdate = time.Now()
 
 	return nil
+}
+
+// updateCandleDirection updates the candle direction history for a timeframe
+func (sm *StateManager) updateCandleDirection(state *SymbolState, timeframe string, isGreen bool) {
+	if state.CandleDirections == nil {
+		state.CandleDirections = make(map[string][]bool)
+	}
+
+	directions, exists := state.CandleDirections[timeframe]
+	if !exists {
+		directions = make([]bool, 0, 100) // Pre-allocate for efficiency
+	}
+
+	// Add new direction
+	directions = append(directions, isGreen)
+
+	// Keep only last 100 candles (adjust based on needs)
+	maxCandles := 100
+	if len(directions) > maxCandles {
+		directions = directions[len(directions)-maxCandles:]
+	}
+
+	state.CandleDirections[timeframe] = directions
 }
 
 // UpdateIndicators updates indicator values for a symbol
@@ -173,12 +296,37 @@ func (sm *StateManager) GetMetrics(symbol string) map[string]float64 {
 
 	// Convert state to metric snapshot
 	metricSnapshot := &metrics.SymbolStateSnapshot{
-		Symbol:        symbol,
-		LiveBar:       state.LiveBar,
-		LastFinalBars: state.LastFinalBars,
-		Indicators:    state.Indicators,
-		LastTickTime:  state.LastTickTime,
-		LastUpdate:    state.LastUpdate,
+		Symbol:           symbol,
+		LiveBar:          state.LiveBar,
+		LastFinalBars:    state.LastFinalBars,
+		Indicators:       state.Indicators,
+		LastTickTime:     state.LastTickTime,
+		LastUpdate:       state.LastUpdate,
+		CurrentSession:   string(state.CurrentSession),
+		SessionStartTime: state.SessionStartTime,
+		YesterdayClose:   state.YesterdayClose,
+		TodayOpen:        state.TodayOpen,
+		TodayClose:       state.TodayClose,
+		PremarketVolume:  state.PremarketVolume,
+		MarketVolume:     state.MarketVolume,
+		PostmarketVolume: state.PostmarketVolume,
+		TradeCount:       state.TradeCount,
+	}
+
+	// Copy trade count history
+	if len(state.TradeCountHistory) > 0 {
+		metricSnapshot.TradeCountHistory = make([]int64, len(state.TradeCountHistory))
+		copy(metricSnapshot.TradeCountHistory, state.TradeCountHistory)
+	}
+
+	// Copy candle directions
+	if len(state.CandleDirections) > 0 {
+		metricSnapshot.CandleDirections = make(map[string][]bool)
+		for k, v := range state.CandleDirections {
+			directions := make([]bool, len(v))
+			copy(directions, v)
+			metricSnapshot.CandleDirections[k] = directions
+		}
 	}
 
 	// Use metric registry to compute all metrics
@@ -200,6 +348,27 @@ type SymbolStateSnapshot struct {
 	Indicators    map[string]float64
 	LastTickTime  time.Time
 	LastUpdate    time.Time
+
+	// Session tracking
+	CurrentSession MarketSession
+	SessionStartTime time.Time
+
+	// Price references
+	YesterdayClose float64
+	TodayOpen      float64
+	TodayClose     float64
+
+	// Session-specific volume tracking
+	PremarketVolume int64
+	MarketVolume    int64
+	PostmarketVolume int64
+
+	// Trade count tracking
+	TradeCount      int64
+	TradeCountHistory []int64
+
+	// Candle direction tracking
+	CandleDirections map[string][]bool
 }
 
 // Snapshot creates a snapshot of all states
@@ -217,9 +386,34 @@ func (sm *StateManager) Snapshot() *StateSnapshot {
 
 		// Create snapshot of this symbol's state
 		symbolSnapshot := &SymbolStateSnapshot{
-			Symbol:        symbol,
-			LastTickTime:  state.LastTickTime,
-			LastUpdate:    state.LastUpdate,
+			Symbol:           symbol,
+			LastTickTime:     state.LastTickTime,
+			LastUpdate:       state.LastUpdate,
+			CurrentSession:   state.CurrentSession,
+			SessionStartTime: state.SessionStartTime,
+			YesterdayClose:   state.YesterdayClose,
+			TodayOpen:        state.TodayOpen,
+			TodayClose:       state.TodayClose,
+			PremarketVolume:  state.PremarketVolume,
+			MarketVolume:     state.MarketVolume,
+			PostmarketVolume: state.PostmarketVolume,
+			TradeCount:       state.TradeCount,
+		}
+
+		// Copy trade count history
+		if len(state.TradeCountHistory) > 0 {
+			symbolSnapshot.TradeCountHistory = make([]int64, len(state.TradeCountHistory))
+			copy(symbolSnapshot.TradeCountHistory, state.TradeCountHistory)
+		}
+
+		// Copy candle directions
+		if len(state.CandleDirections) > 0 {
+			symbolSnapshot.CandleDirections = make(map[string][]bool)
+			for k, v := range state.CandleDirections {
+				directions := make([]bool, len(v))
+				copy(directions, v)
+				symbolSnapshot.CandleDirections[k] = directions
+			}
 		}
 
 		// Copy live bar

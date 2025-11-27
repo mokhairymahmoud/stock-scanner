@@ -415,12 +415,37 @@ func (sl *ScanLoop) getMetricsFromSnapshot(snapshot *SymbolStateSnapshot) map[st
 
 	// Convert scanner snapshot to metrics snapshot
 	metricSnapshot := &metrics.SymbolStateSnapshot{
-		Symbol:        snapshot.Symbol,
-		LiveBar:       snapshot.LiveBar,
-		LastFinalBars: snapshot.LastFinalBars,
-		Indicators:    snapshot.Indicators,
-		LastTickTime:  snapshot.LastTickTime,
-		LastUpdate:    snapshot.LastUpdate,
+		Symbol:           snapshot.Symbol,
+		LiveBar:          snapshot.LiveBar,
+		LastFinalBars:    snapshot.LastFinalBars,
+		Indicators:       snapshot.Indicators,
+		LastTickTime:     snapshot.LastTickTime,
+		LastUpdate:       snapshot.LastUpdate,
+		CurrentSession:   string(snapshot.CurrentSession),
+		SessionStartTime: snapshot.SessionStartTime,
+		YesterdayClose:   snapshot.YesterdayClose,
+		TodayOpen:        snapshot.TodayOpen,
+		TodayClose:       snapshot.TodayClose,
+		PremarketVolume:  snapshot.PremarketVolume,
+		MarketVolume:     snapshot.MarketVolume,
+		PostmarketVolume: snapshot.PostmarketVolume,
+		TradeCount:       snapshot.TradeCount,
+	}
+
+	// Copy trade count history
+	if len(snapshot.TradeCountHistory) > 0 {
+		metricSnapshot.TradeCountHistory = make([]int64, len(snapshot.TradeCountHistory))
+		copy(metricSnapshot.TradeCountHistory, snapshot.TradeCountHistory)
+	}
+
+	// Copy candle directions
+	if len(snapshot.CandleDirections) > 0 {
+		metricSnapshot.CandleDirections = make(map[string][]bool)
+		for k, v := range snapshot.CandleDirections {
+			directions := make([]bool, len(v))
+			copy(directions, v)
+			metricSnapshot.CandleDirections[k] = directions
+		}
 	}
 
 	// Compute all metrics using registry
