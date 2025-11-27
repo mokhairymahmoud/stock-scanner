@@ -3,8 +3,6 @@ package indicator
 import (
 	"fmt"
 	"sync"
-
-	indicatorpkg "github.com/mohamedkhairy/stock-scanner/pkg/indicator"
 )
 
 // IndicatorRegistry manages all available indicators (Techan + Custom)
