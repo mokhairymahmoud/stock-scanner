@@ -16,7 +16,6 @@ import (
 	"github.com/mohamedkhairy/stock-scanner/internal/indicator"
 	"github.com/mohamedkhairy/stock-scanner/internal/pubsub"
 	"github.com/mohamedkhairy/stock-scanner/internal/toplist"
-	indicatorpkg "github.com/mohamedkhairy/stock-scanner/pkg/indicator"
 	"github.com/mohamedkhairy/stock-scanner/pkg/logger"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
