@@ -6,11 +6,9 @@ import (
 
 // invalidateMetricCache invalidates the metric cache
 // Should be called whenever state data changes
+// NOTE: Caller must hold s.mu.Lock() before calling this method
 func (s *SymbolState) invalidateMetricCache() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Clear cache
+	// Clear cache (caller already holds lock)
 	s.cachedMetrics = make(map[string]float64)
 	s.cacheTimestamp = time.Time{}
 	s.cacheInvalidation = time.Time{}
@@ -18,6 +16,7 @@ func (s *SymbolState) invalidateMetricCache() {
 
 // getCachedMetrics retrieves cached metrics if cache is still valid
 // Returns nil if cache is invalid or empty
+// NOTE: This method acquires its own lock, safe to call from any context
 func (s *SymbolState) getCachedMetrics(requiredMetrics map[string]bool, maxAge time.Duration) map[string]float64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -60,6 +59,7 @@ func (s *SymbolState) getCachedMetrics(requiredMetrics map[string]bool, maxAge t
 }
 
 // setCachedMetrics stores computed metrics in cache
+// NOTE: This method acquires its own lock, safe to call from any context
 func (s *SymbolState) setCachedMetrics(metrics map[string]float64, maxAge time.Duration) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
