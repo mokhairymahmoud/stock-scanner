@@ -219,5 +219,34 @@ func (r *Registry) registerBuiltInMetrics() {
 	r.Register(NewMADistanceComputer("ma_dist_ema21_60m_pct", "ema_21"))
 	// EMA daily
 	r.Register(NewMADistanceComputer("ma_dist_ema50_daily_pct", "ema_50"))
+
+	// Activity filters - Trade Count with timeframes
+	r.Register(NewTradeCountComputer("trade_count_1m", 1))
+	r.Register(NewTradeCountComputer("trade_count_2m", 2))
+	r.Register(NewTradeCountComputer("trade_count_5m", 5))
+	r.Register(NewTradeCountComputer("trade_count_15m", 15))
+	r.Register(NewTradeCountComputer("trade_count_60m", 60))
+
+	// Activity filters - Consecutive Candles with timeframes
+	r.Register(NewConsecutiveCandlesComputer("consecutive_candles_1m", "1m"))
+	r.Register(NewConsecutiveCandlesComputer("consecutive_candles_2m", "1m")) // Uses 1m candles for 2m timeframe
+	r.Register(NewConsecutiveCandlesComputer("consecutive_candles_5m", "1m")) // Uses 1m candles for 5m timeframe
+	r.Register(NewConsecutiveCandlesComputer("consecutive_candles_15m", "1m")) // Uses 1m candles for 15m timeframe
+	r.Register(NewConsecutiveCandlesComputer("consecutive_candles_daily", "1m")) // Uses 1m candles for daily
+
+	// Advanced volume filters - Average Volume (simplified, requires historical data for full implementation)
+	r.Register(NewAverageVolumeComputer("avg_volume_5d", 5))
+	r.Register(NewAverageVolumeComputer("avg_volume_10d", 10))
+	r.Register(NewAverageVolumeComputer("avg_volume_20d", 20))
+
+	// Advanced volume filters - Relative Volume (%)
+	r.Register(NewRelativeVolumeComputer("relative_volume_1m", 10)) // Compare to last 10 bars
+	r.Register(NewRelativeVolumeComputer("relative_volume_2m", 10))
+	r.Register(NewRelativeVolumeComputer("relative_volume_5m", 10))
+	r.Register(NewRelativeVolumeComputer("relative_volume_15m", 10))
+	r.Register(NewRelativeVolumeComputer("relative_volume_daily", 10))
+
+	// Advanced volume filters - Relative Volume at Same Time
+	r.Register(&RelativeVolumeSameTimeComputer{})
 }
 

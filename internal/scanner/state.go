@@ -221,6 +221,20 @@ func (sm *StateManager) UpdateFinalizedBar(bar *models.Bar1m) error {
 	isGreen := bar.Close > bar.Open
 	sm.updateCandleDirection(state, "1m", isGreen)
 
+	// Store trade count for this bar in history
+	// TradeCount represents trades that occurred during this bar's timeframe
+	if state.TradeCountHistory == nil {
+		state.TradeCountHistory = make([]int64, 0, sm.maxFinalBars)
+	}
+	state.TradeCountHistory = append(state.TradeCountHistory, state.TradeCount)
+	// Keep only last maxFinalBars entries (ring buffer behavior)
+	if len(state.TradeCountHistory) > sm.maxFinalBars {
+		copy(state.TradeCountHistory, state.TradeCountHistory[1:])
+		state.TradeCountHistory = state.TradeCountHistory[:len(state.TradeCountHistory)-1]
+	}
+	// Reset trade count for next bar (will be incremented on next tick)
+	state.TradeCount = 0
+
 	// Add to ring buffer
 	state.LastFinalBars = append(state.LastFinalBars, bar)
 	if len(state.LastFinalBars) > sm.maxFinalBars {
