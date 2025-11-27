@@ -65,17 +65,17 @@ func (t *TechanCalculator) Update(bar *models.Bar1m) (float64, error) {
 	}
 
 	// Try to calculate the indicator value
-	// Techan indicators return valid values even with fewer bars than the period
-	// (e.g., EMA can calculate with just 1 bar, RSI needs period+1)
 	value := t.indicator.Calculate(lastIndex)
-	
-	// Check if the value is valid (not zero or NaN)
-	// For most Techan indicators, if Calculate returns a value, it's valid
 	valueFloat := value.Float()
 	
-	// Mark as ready if we have at least 1 bar and the value is not NaN
-	// Some indicators (like EMA) can work with 1 bar, others need more
-	if lastIndex >= 0 && !isNaN(valueFloat) {
+	// Check if the value is valid
+	// Techan indicators return 0 until they have enough data
+	// For EMA/SMA: need period bars, for RSI: need period+1 bars
+	// We consider it ready if:
+	// 1. We have at least period bars (for most indicators)
+	// 2. The value is not NaN
+	// 3. The value is not zero (which indicates insufficient data for Techan)
+	if lastIndex >= t.period-1 && !isNaN(valueFloat) && valueFloat != 0 {
 		t.ready = true
 		return valueFloat, nil
 	}
