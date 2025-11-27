@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/mohamedkhairy/stock-scanner/internal/models"
+	"github.com/sdcoffey/big"
 	"github.com/sdcoffey/techan"
 )
 
@@ -45,11 +46,11 @@ func (t *TechanCalculator) Update(bar *models.Bar1m) (float64, error) {
 	timePeriod := techan.NewTimePeriod(bar.Timestamp, time.Minute)
 	candle := techan.NewCandle(timePeriod)
 
-	candle.OpenPrice = techan.NewDecimal(bar.Open)
-	candle.HighPrice = techan.NewDecimal(bar.High)
-	candle.LowPrice = techan.NewDecimal(bar.Low)
-	candle.ClosePrice = techan.NewDecimal(bar.Close)
-	candle.Volume = techan.NewDecimal(float64(bar.Volume))
+	candle.OpenPrice = big.NewDecimal(bar.Open)
+	candle.MaxPrice = big.NewDecimal(bar.High)
+	candle.MinPrice = big.NewDecimal(bar.Low)
+	candle.ClosePrice = big.NewDecimal(bar.Close)
+	candle.Volume = big.NewDecimal(float64(bar.Volume))
 
 	t.series.AddCandle(candle)
 
