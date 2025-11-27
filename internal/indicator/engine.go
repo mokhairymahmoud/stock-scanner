@@ -18,7 +18,8 @@ type OnIndicatorsUpdated func(symbol string, indicators map[string]float64)
 
 // Engine processes finalized bars and computes indicators
 type Engine struct {
-	calculatorFactories map[string]CalculatorFactory // Factory functions for creating calculators
+	indicatorRegistry   *IndicatorRegistry // Registry of all available indicators
+	requiredIndicators  map[string]bool    // Set of required indicator names (empty = all)
 	symbolStates        map[string]*indicatorpkg.SymbolState
 	onIndicatorsUpdated OnIndicatorsUpdated // Callback after indicators are updated
 	mu                  sync.RWMutex
@@ -40,36 +41,36 @@ func DefaultEngineConfig() EngineConfig {
 }
 
 // NewEngine creates a new indicator engine
-func NewEngine(config EngineConfig) *Engine {
+func NewEngine(config EngineConfig, registry *IndicatorRegistry) *Engine {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Engine{
-		calculatorFactories: make(map[string]CalculatorFactory),
-		symbolStates:        make(map[string]*indicatorpkg.SymbolState),
-		ctx:                 ctx,
-		cancel:              cancel,
-		maxBars:             config.MaxBars,
+		indicatorRegistry:  registry,
+		requiredIndicators: make(map[string]bool), // Empty = all indicators
+		symbolStates:       make(map[string]*indicatorpkg.SymbolState),
+		ctx:                ctx,
+		cancel:             cancel,
+		maxBars:            config.MaxBars,
 	}
 }
 
-// RegisterCalculatorFactory registers a factory function for creating calculator instances
-func (e *Engine) RegisterCalculatorFactory(name string, factory CalculatorFactory) error {
-	if factory == nil {
-		return fmt.Errorf("factory cannot be nil")
-	}
-	if name == "" {
-		return fmt.Errorf("calculator name cannot be empty")
-	}
-
+// SetRequiredIndicators sets which indicators should be computed
+// If empty map, all indicators will be computed
+func (e *Engine) SetRequiredIndicators(required map[string]bool) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	e.requiredIndicators = required
+}
 
-	if _, exists := e.calculatorFactories[name]; exists {
-		return fmt.Errorf("calculator factory with name %q already registered", name)
+// GetRequiredIndicators returns the set of required indicators
+func (e *Engine) GetRequiredIndicators() map[string]bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	result := make(map[string]bool)
+	for name, required := range e.requiredIndicators {
+		result[name] = required
 	}
-
-	e.calculatorFactories[name] = factory
-	return nil
+	return result
 }
 
 // ProcessBar processes a finalized bar and updates indicators
@@ -91,8 +92,23 @@ func (e *Engine) ProcessBar(bar *models.Bar1m) error {
 		state = indicatorpkg.NewSymbolState(bar.Symbol, e.maxBars)
 		e.symbolStates[bar.Symbol] = state
 
-		// Create calculator instances for this symbol using factories
-		for name, factory := range e.calculatorFactories {
+		// Create calculator instances for this symbol using registry
+		// If requiredIndicators is empty, create all indicators
+		// Otherwise, only create required ones
+		allIndicators := len(e.requiredIndicators) == 0
+		availableIndicators := e.indicatorRegistry.ListAvailable()
+
+		for _, name := range availableIndicators {
+			// Skip if we have required indicators and this one is not required
+			if !allIndicators && !e.requiredIndicators[name] {
+				continue
+			}
+
+			factory, exists := e.indicatorRegistry.GetFactory(name)
+			if !exists {
+				continue
+			}
+
 			calc, err := factory()
 			if err != nil {
 				logger.Warn("Failed to create calculator",

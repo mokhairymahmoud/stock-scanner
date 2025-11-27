@@ -51,16 +51,21 @@ func main() {
 	}
 	defer redisClient.Close()
 
-	// Initialize indicator engine
-	engineConfig := indicator.DefaultEngineConfig()
-	engine := indicator.NewEngine(engineConfig)
-
-	// Register indicator calculators
-	if err := registerIndicators(engine); err != nil {
+	// Initialize indicator registry
+	indicatorRegistry := indicator.NewIndicatorRegistry()
+	if err := indicator.RegisterAllIndicators(indicatorRegistry); err != nil {
 		logger.Fatal("Failed to register indicators",
 			logger.ErrorField(err),
 		)
 	}
+
+	logger.Info("Registered indicators",
+		logger.Int("count", len(indicatorRegistry.ListAvailable())),
+	)
+
+	// Initialize indicator engine
+	engineConfig := indicator.DefaultEngineConfig()
+	engine := indicator.NewEngine(engineConfig, indicatorRegistry)
 
 	// Initialize indicator publisher
 	publisherConfig := indicator.DefaultPublisherConfig()
@@ -176,104 +181,6 @@ func main() {
 	logger.Info("Indicator engine service stopped")
 }
 
-// registerIndicators registers all indicator calculators with the engine
-func registerIndicators(engine *indicator.Engine) error {
-	// RSI indicators
-	if err := engine.RegisterCalculatorFactory("rsi_14", func() (indicatorpkg.Calculator, error) {
-		return indicatorpkg.NewRSI(14)
-	}); err != nil {
-		return fmt.Errorf("failed to register RSI_14: %w", err)
-	}
-
-	// EMA indicators
-	emaPeriods := []int{20, 50, 200}
-	for _, period := range emaPeriods {
-		name := fmt.Sprintf("ema_%d", period)
-		period := period // Capture loop variable
-		if err := engine.RegisterCalculatorFactory(name, func() (indicatorpkg.Calculator, error) {
-			return indicatorpkg.NewEMA(period)
-		}); err != nil {
-			return fmt.Errorf("failed to register %s: %w", name, err)
-		}
-	}
-
-	// SMA indicators
-	smaPeriods := []int{20, 50, 200}
-	for _, period := range smaPeriods {
-		name := fmt.Sprintf("sma_%d", period)
-		period := period // Capture loop variable
-		if err := engine.RegisterCalculatorFactory(name, func() (indicatorpkg.Calculator, error) {
-			return indicatorpkg.NewSMA(period)
-		}); err != nil {
-			return fmt.Errorf("failed to register %s: %w", name, err)
-		}
-	}
-
-	// VWAP indicators
-	vwapWindows := []time.Duration{
-		5 * time.Minute,
-		15 * time.Minute,
-		1 * time.Hour,
-	}
-	for _, window := range vwapWindows {
-		name := fmt.Sprintf("vwap_%s", formatDuration(window))
-		window := window // Capture loop variable
-		if err := engine.RegisterCalculatorFactory(name, func() (indicatorpkg.Calculator, error) {
-			return indicatorpkg.NewVWAP(window)
-		}); err != nil {
-			return fmt.Errorf("failed to register %s: %w", name, err)
-		}
-	}
-
-	// Volume average indicators
-	volumeWindows := []time.Duration{
-		5 * time.Minute,
-		15 * time.Minute,
-		1 * time.Hour,
-	}
-	for _, window := range volumeWindows {
-		name := fmt.Sprintf("volume_avg_%s", formatDuration(window))
-		window := window // Capture loop variable
-		if err := engine.RegisterCalculatorFactory(name, func() (indicatorpkg.Calculator, error) {
-			return indicatorpkg.NewVolumeAverage(window)
-		}); err != nil {
-			return fmt.Errorf("failed to register %s: %w", name, err)
-		}
-	}
-
-	// Price change indicators
-	priceChangeWindows := []time.Duration{
-		1 * time.Minute,
-		5 * time.Minute,
-		15 * time.Minute,
-	}
-	for _, window := range priceChangeWindows {
-		name := fmt.Sprintf("price_change_%s_pct", formatDuration(window))
-		window := window // Capture loop variable
-		if err := engine.RegisterCalculatorFactory(name, func() (indicatorpkg.Calculator, error) {
-			return indicatorpkg.NewPriceChange(window)
-		}); err != nil {
-			return fmt.Errorf("failed to register %s: %w", name, err)
-		}
-	}
-
-	logger.Info("Registered all indicator calculators")
-	return nil
-}
-
-// formatDuration formats a duration for use in indicator names
-func formatDuration(d time.Duration) string {
-	minutes := int(d.Minutes())
-	if minutes < 60 {
-		return fmt.Sprintf("%dm", minutes)
-	}
-	hours := minutes / 60
-	if hours < 24 {
-		return fmt.Sprintf("%dh", hours)
-	}
-	days := hours / 24
-	return fmt.Sprintf("%dd", days)
-}
 
 // setupHealthAndMetricsServer sets up HTTP endpoints for health checks and metrics
 func setupHealthAndMetricsServer(
