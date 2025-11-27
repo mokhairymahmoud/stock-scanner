@@ -305,9 +305,28 @@ func (sl *ScanLoop) Scan() {
 		// Get metrics for this symbol (computed from snapshot, no lock needed)
 		metrics := sl.getMetricsFromSnapshot(symbolState)
 
+		// Get current session for this symbol (as string to avoid import cycle)
+		currentSession := string(symbolState.CurrentSession)
+
 		// Evaluate each rule (if any rules exist)
 		for ruleID, compiledRule := range compiledRules {
 			rulesEvaluated++
+
+			// Get rule details for filter configuration checks
+			rule, err := sl.ruleStore.GetRule(ruleID)
+			if err != nil {
+				logger.Error("Failed to get rule details for filter checks",
+					logger.ErrorField(err),
+					logger.String("rule_id", ruleID),
+				)
+				continue
+			}
+
+			// Pre-filter: Check volume threshold and session for all conditions
+			shouldEvaluate := sl.shouldEvaluateRule(rule, metrics, currentSession)
+			if !shouldEvaluate {
+				continue // Pre-filter failed, skip rule evaluation
+			}
 
 			// Evaluate rule
 			matched, err := compiledRule(symbol, metrics)
@@ -335,15 +354,7 @@ func (sl *ScanLoop) Scan() {
 				continue
 			}
 
-			// Get rule details for alert
-			rule, err := sl.ruleStore.GetRule(ruleID)
-			if err != nil {
-				logger.Error("Failed to get rule details",
-					logger.ErrorField(err),
-					logger.String("rule_id", ruleID),
-				)
-				continue
-			}
+			// Rule already retrieved above for filter checks, reuse it
 
 			// Emit alert
 			if sl.alertEmitter != nil {
@@ -514,6 +525,29 @@ func (sl *ScanLoop) reloadRules() error {
 	}
 
 	return nil
+}
+
+// shouldEvaluateRule checks if a rule should be evaluated based on filter configuration
+// Returns true if volume threshold and session filters pass
+func (sl *ScanLoop) shouldEvaluateRule(rule *models.Rule, metrics map[string]float64, currentSession string) bool {
+	// Check each condition's filter configuration
+	for _, cond := range rule.Conditions {
+		// Check volume threshold
+		if cond.VolumeThreshold != nil && *cond.VolumeThreshold > 0 {
+			if !rules.CheckVolumeThreshold(metrics, cond.VolumeThreshold) {
+				return false // Volume threshold not met
+			}
+		}
+
+		// Check session filter
+		if cond.CalculatedDuring != "" && cond.CalculatedDuring != "all" {
+			if !rules.CheckSessionFilter(currentSession, cond.CalculatedDuring) {
+				return false // Session filter not met
+			}
+		}
+	}
+
+	return true // All pre-filters passed
 }
 
 // createAlert creates an alert from a matched rule

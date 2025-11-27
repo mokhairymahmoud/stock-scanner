@@ -25,6 +25,11 @@ func ParseRule(data []byte) (*models.Rule, error) {
 		rule.UpdatedAt = time.Now()
 	}
 
+	// Enrich conditions with extracted timeframe and value type
+	for i := range rule.Conditions {
+		EnrichCondition(&rule.Conditions[i])
+	}
+
 	// Validate the parsed rule
 	if err := ValidateRule(&rule); err != nil {
 		return nil, fmt.Errorf("invalid rule: %w", err)
@@ -64,6 +69,11 @@ func ParseRules(data []byte) ([]*models.Rule, error) {
 		}
 		if rule.UpdatedAt.IsZero() {
 			rule.UpdatedAt = time.Now()
+		}
+
+		// Enrich conditions with extracted timeframe and value type
+		for j := range rule.Conditions {
+			EnrichCondition(&rule.Conditions[j])
 		}
 
 		if err := ValidateRule(rule); err != nil {

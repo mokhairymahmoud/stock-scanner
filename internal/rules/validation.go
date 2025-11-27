@@ -39,6 +39,11 @@ func ValidateCondition(cond *models.Condition) error {
 		return err
 	}
 
+	// Validate filter configuration
+	if err := ValidateFilterConfig(cond); err != nil {
+		return err
+	}
+
 	// Validate value type
 	if cond.Value == nil {
 		return fmt.Errorf("condition value cannot be nil")

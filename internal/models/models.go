@@ -141,6 +141,12 @@ type Condition struct {
 	Metric   string      `json:"metric"`   // e.g., "rsi_14", "price_change_5m_pct"
 	Operator string      `json:"operator"` // ">", "<", ">=", "<=", "==", "!="
 	Value    interface{} `json:"value"`     // Comparison value
+
+	// Filter configuration options
+	VolumeThreshold *int64  `json:"volume_threshold,omitempty"` // Minimum volume required (default: 0)
+	CalculatedDuring string  `json:"calculated_during,omitempty"` // Session filter: "premarket", "market", "postmarket", "all" (default: "all")
+	Timeframe        string  `json:"timeframe,omitempty"`        // Timeframe override (e.g., "5m", "15m") - extracted from metric name if not specified
+	ValueType        string  `json:"value_type,omitempty"`        // Value type: "$" or "%" - extracted from metric name if not specified
 }
 
 // Validate validates a Rule
