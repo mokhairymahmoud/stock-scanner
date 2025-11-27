@@ -73,6 +73,10 @@ type ScanLoop struct {
 	compiledRules map[string]rules.CompiledRule
 	rulesMu       sync.RWMutex
 
+	// Required metrics for all active rules (for lazy computation)
+	requiredMetrics map[string]bool
+	requiredMetricsMu sync.RWMutex
+
 	// Rule reload tracking
 	lastRuleReload time.Time
 	lastReloadMu   sync.RWMutex
@@ -138,6 +142,7 @@ func NewScanLoop(
 		metricsPool:        metricsPool,
 		metricRegistry:     metricRegistry,
 		compiledRules:      make(map[string]rules.CompiledRule),
+		requiredMetrics:    make(map[string]bool),
 		lastRuleReload:     time.Now(),
 		stats: ScanLoopStats{
 			MinScanCycleTime: time.Hour, // Initialize to large value
@@ -303,7 +308,8 @@ func (sl *ScanLoop) Scan() {
 		symbolsScanned++
 
 		// Get metrics for this symbol (computed from snapshot, no lock needed)
-		metrics := sl.getMetricsFromSnapshot(symbolState)
+		// Only compute metrics that are actually needed by active rules
+		metrics := sl.getMetricsFromSnapshot(symbolState, sl.getRequiredMetrics())
 
 		// Get current session for this symbol (as string to avoid import cycle)
 		currentSession := string(symbolState.CurrentSession)
@@ -413,9 +419,47 @@ func (sl *ScanLoop) Scan() {
 	atomic.AddInt64(&sl.stats.AlertsEmitted, alertsEmitted)
 }
 
+// getRequiredMetrics returns the set of metrics required by active rules
+func (sl *ScanLoop) getRequiredMetrics() map[string]bool {
+	sl.requiredMetricsMu.RLock()
+	defer sl.requiredMetricsMu.RUnlock()
+
+	// Return a copy to avoid race conditions
+	result := make(map[string]bool, len(sl.requiredMetrics))
+	for k, v := range sl.requiredMetrics {
+		result[k] = v
+	}
+	return result
+}
+
 // getMetricsFromSnapshot computes metrics from a symbol state snapshot
+// If requiredMetrics is nil or empty, computes all metrics (backward compatibility)
 // Returns a map that should be returned to pool after use
-func (sl *ScanLoop) getMetricsFromSnapshot(snapshot *SymbolStateSnapshot) map[string]float64 {
+// Uses caching when possible to avoid recomputation
+func (sl *ScanLoop) getMetricsFromSnapshot(snapshot *SymbolStateSnapshot, requiredMetrics map[string]bool) map[string]float64 {
+	// Get the actual state for cache access
+	// Note: We need to access the state to check cache, but we can't hold locks during computation
+	state := sl.stateManager.GetState(snapshot.Symbol)
+	
+	// Try to get cached metrics (cache valid for 100ms within same scan cycle)
+	// This helps when multiple rules need the same metrics
+	cacheMaxAge := 100 * time.Millisecond
+	if state != nil {
+		if cached := state.getCachedMetrics(requiredMetrics, cacheMaxAge); cached != nil {
+			// Get metrics map from pool
+			metricsMap := sl.metricsPool.Get().(map[string]float64)
+			// Clear map (but keep capacity)
+			for k := range metricsMap {
+				delete(metricsMap, k)
+			}
+			// Copy cached metrics
+			for k, v := range cached {
+				metricsMap[k] = v
+			}
+			return metricsMap
+		}
+	}
+
 	// Get metrics map from pool
 	metricsMap := sl.metricsPool.Get().(map[string]float64)
 
@@ -459,12 +503,18 @@ func (sl *ScanLoop) getMetricsFromSnapshot(snapshot *SymbolStateSnapshot) map[st
 		}
 	}
 
-	// Compute all metrics using registry
-	computed := sl.metricRegistry.ComputeAll(metricSnapshot)
+	// Compute only required metrics using registry (lazy computation)
+	// If requiredMetrics is nil or empty, compute all (backward compatibility)
+	computed := sl.metricRegistry.ComputeMetrics(metricSnapshot, requiredMetrics)
 
 	// Copy computed metrics to pooled map
 	for k, v := range computed {
 		metricsMap[k] = v
+	}
+
+	// Cache computed metrics for future use in same scan cycle
+	if state != nil {
+		state.setCachedMetrics(computed, cacheMaxAge)
 	}
 
 	return metricsMap
@@ -501,11 +551,19 @@ func (sl *ScanLoop) reloadRules() error {
 		return fmt.Errorf("failed to compile rules: %w", err)
 	}
 
-	// Update compiled rules cache (write lock)
+	// Extract required metrics from enabled rules
+	requiredMetrics := rules.ExtractRequiredMetrics(enabledRules)
+
+	// Update compiled rules cache and required metrics (write lock)
 	sl.rulesMu.Lock()
 	oldCount := len(sl.compiledRules)
 	sl.compiledRules = compiled
 	sl.rulesMu.Unlock()
+
+	// Update required metrics
+	sl.requiredMetricsMu.Lock()
+	sl.requiredMetrics = requiredMetrics
+	sl.requiredMetricsMu.Unlock()
 
 	// Update last reload time
 	sl.lastReloadMu.Lock()

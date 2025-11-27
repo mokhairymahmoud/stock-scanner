@@ -40,6 +40,12 @@ type SymbolState struct {
 	// Candle direction tracking (for consecutive candles filter)
 	// Map of timeframe -> direction history (true = green/up, false = red/down)
 	CandleDirections map[string][]bool // timeframe -> []bool
+
+	// Metric caching for performance optimization
+	// Cache computed metrics with invalidation timestamp
+	cachedMetrics     map[string]float64
+	cacheTimestamp    time.Time
+	cacheInvalidation time.Time // When cache should be invalidated
 }
 
 // StateManager manages symbol states for the scanner
@@ -139,6 +145,11 @@ func (sm *StateManager) UpdateLiveBar(symbol string, tick *models.Tick) error {
 	state.LastTickTime = tick.Timestamp
 	state.LastUpdate = time.Now()
 
+	// Invalidate metric cache (data has changed)
+	// Note: We invalidate on every tick update, but cache can still help
+	// when multiple rules need the same metrics in a single scan cycle
+	state.invalidateMetricCache()
+
 	// Increment trade count
 	state.TradeCount++
 
@@ -234,6 +245,9 @@ func (sm *StateManager) UpdateFinalizedBar(bar *models.Bar1m) error {
 	}
 	// Reset trade count for next bar (will be incremented on next tick)
 	state.TradeCount = 0
+
+	// Invalidate metric cache (data has changed)
+	state.invalidateMetricCache()
 
 	// Add to ring buffer
 	state.LastFinalBars = append(state.LastFinalBars, bar)

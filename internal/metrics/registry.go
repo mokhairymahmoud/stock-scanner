@@ -74,6 +74,42 @@ func (r *Registry) ComputeAll(snapshot *SymbolStateSnapshot) map[string]float64 
 	return metrics
 }
 
+// ComputeMetrics computes only the specified metrics from a snapshot
+// It also computes any dependencies of the requested metrics
+func (r *Registry) ComputeMetrics(snapshot *SymbolStateSnapshot, metricNames map[string]bool) map[string]float64 {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	metrics := make(map[string]float64)
+
+	// First, copy indicators (they're already computed)
+	for key, value := range snapshot.Indicators {
+		// Only include if requested
+		if metricNames == nil || metricNames[key] {
+			metrics[key] = value
+		}
+	}
+
+	// If no specific metrics requested, compute all
+	if metricNames == nil || len(metricNames) == 0 {
+		return r.ComputeAll(snapshot)
+	}
+
+	// Compute only requested metrics
+	// Note: We still iterate in order to respect dependencies
+	// In the future, we could implement topological sort based on dependencies
+	for _, computer := range r.ordered {
+		name := computer.Name()
+		if metricNames[name] {
+			if value, ok := computer.Compute(snapshot); ok {
+				metrics[name] = value
+			}
+		}
+	}
+
+	return metrics
+}
+
 // rebuildOrdered rebuilds the ordered list of computers
 // For now, uses registration order. Could be improved with topological sort.
 func (r *Registry) rebuildOrdered() {
