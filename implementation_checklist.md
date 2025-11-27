@@ -44,15 +44,28 @@ This is a condensed checklist version of the implementation plan for quick progr
   - [x] Core interfaces (Calculator, WindowedCalculator)
   - [x] Registry for managing calculators
   - [x] SymbolState for per-symbol state management
-  - [x] RSI implementation (period 14)
-  - [x] EMA implementation (periods 20, 50, 200)
-  - [x] SMA implementation (periods 20, 50, 200)
-  - [x] VWAP implementation (windows 5m, 15m, 1h)
-  - [x] Volume indicators (average and relative volume)
-  - [x] Price change indicators (1m, 5m, 15m windows)
-  - [x] Comprehensive unit tests (82.6% coverage)
+  - [x] Techan library integration
+    - [x] Techan adapter (`techan_adapter.go`)
+    - [x] Techan factory functions (`techan_factory.go`)
+    - [x] RSI via Techan (periods 9, 14, 21)
+    - [x] EMA via Techan (periods 9, 12, 20, 21, 26, 50, 200)
+    - [x] SMA via Techan (periods 10, 20, 50, 200)
+    - [x] MACD via Techan (12, 26, 9)
+    - [x] ATR via Techan (period 14)
+    - [x] Bollinger Bands via Techan (20, 2.0)
+    - [x] Stochastic via Techan (14, 3, 3)
+  - [x] Custom indicators (not in Techan)
+    - [x] VWAP implementation (windows 5m, 15m, 1h)
+    - [x] Volume indicators (average and relative volume)
+    - [x] Price change indicators (1m, 5m, 15m windows)
+  - [x] Removed old custom RSI, EMA, SMA implementations
+- [x] Indicator Registry System (`internal/indicator`)
+  - [x] IndicatorRegistry for managing all indicators
+  - [x] Indicator registration for Techan and custom indicators
+  - [x] Metadata support for indicators
 - [x] Indicator Engine Service
-  - [x] Engine core with factory pattern for calculators
+  - [x] Engine core with registry-based indicator management
+  - [x] Dynamic indicator computation (only compute required indicators)
   - [x] Bar consumer (consumes from `bars.finalized` stream)
   - [x] Indicator computation logic
   - [x] Indicator publishing to Redis (`ind:{symbol}` keys + pub/sub)

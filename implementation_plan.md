@@ -334,6 +334,7 @@ See Phase 5 for detailed implementation tasks.
 - ✅ Compute technical indicators from finalized bars
 - ✅ Publish indicators to Redis
 - ✅ Support multiple indicator types
+- ✅ Integrate Techan library for technical indicators
 
 ### Dependencies
 - ✅ Phase 1 complete (bar aggregator publishing finalized bars)
@@ -347,26 +348,30 @@ See Phase 5 for detailed implementation tasks.
 - [x] Define `Calculator` interface for each indicator type
 - [x] Create indicator registry
 
-**2.1.2 Implement Indicators** ✅
-- [x] RSI (Relative Strength Index)
-  - [x] Window-based calculation
-  - [x] Incremental updates
-- [x] EMA (Exponential Moving Average)
-  - [x] Multiple periods (EMA20, EMA50, EMA200)
-  - [x] Incremental calculation
+**2.1.2 Techan Integration** ✅
+- [x] Add Techan dependency
+- [x] Create Techan adapter (`techan_adapter.go`)
+- [x] Create Techan factory functions (`techan_factory.go`)
+- [x] Support RSI, EMA, SMA, MACD, ATR, Bollinger Bands, Stochastic via Techan
+- [x] Remove old custom RSI, EMA, SMA implementations
+
+**2.1.3 Indicator Registry System** ✅
+- [x] Create `IndicatorRegistry` (`internal/indicator/registry.go`)
+- [x] Create indicator registration (`internal/indicator/indicator_registration.go`)
+- [x] Register all Techan indicators
+- [x] Register all custom indicators (VWAP, Volume Average, Price Change)
+
+**2.1.4 Custom Indicators** ✅
 - [x] VWAP (Volume Weighted Average Price)
   - [x] Window-based (5m, 15m, 1h)
   - [x] Incremental updates
-- [x] SMA (Simple Moving Average)
-  - [x] Multiple periods (SMA20, SMA50, SMA200)
 - [x] Volume indicators:
   - [x] Average volume (5m, 15m, 1h windows)
   - [x] Relative volume calculation
 - [x] Price change indicators:
   - [x] Price change % (1m, 5m, 15m)
-- [x] Unit tests for each indicator (82.6% coverage)
 
-**2.1.3 Indicator State Management** ✅
+**2.1.5 Indicator State Management** ✅
 - [x] Maintain rolling windows per symbol
 - [x] Efficient data structures (ring buffers)
 - [x] Thread-safe updates
@@ -382,6 +387,8 @@ See Phase 5 for detailed implementation tasks.
 - [x] Compute indicators after bar finalization
 - [x] Batch computation for efficiency
 - [x] Handle missing data gracefully
+- [x] Dynamic indicator computation (only compute required indicators)
+- [x] Support for requirement-based indicator creation
 
 **2.2.3 Indicator Publishing** ✅
 - [x] Publish indicators to Redis
@@ -397,6 +404,7 @@ See Phase 5 for detailed implementation tasks.
 - [x] Health checks
 - [x] Metrics
 - [x] Integration with Redis Streams
+- [x] Integration with IndicatorRegistry
 
 #### 2.3 Testing ✅
 - [x] Unit tests for indicator calculations
@@ -410,19 +418,23 @@ See Phase 5 for detailed implementation tasks.
 
 **Deliverables:**
 - ✅ Complete indicator package with Calculator interface, Registry, and SymbolState management
-- ✅ All indicator implementations: RSI, EMA, SMA, VWAP, Volume Average, Relative Volume, Price Change
+- ✅ Techan library integration for technical indicators (RSI, EMA, SMA, MACD, ATR, Bollinger Bands, Stochastic)
+- ✅ Custom indicator implementations: VWAP, Volume Average, Price Change
+- ✅ Indicator registry system for managing all indicators
 - ✅ Indicator Engine service with bar consumer, computation engine, and publisher
 - ✅ Complete end-to-end data flow: Finalized Bars → Indicator Engine → Redis (keys + pub/sub)
-- ✅ Comprehensive test suite with 82.6% code coverage
 - ✅ Health checks and metrics endpoints
 
 **Key Features:**
+- Techan library integration via adapter pattern
 - Per-symbol calculator instances via factory pattern
 - Thread-safe state management with rolling windows
 - Real-time indicator computation from finalized bars
+- Dynamic indicator computation (only compute required indicators)
 - Redis key storage (`ind:{symbol}`) with 10-minute TTL
 - Redis pub/sub notifications for real-time updates
 - Support for multiple indicator types and periods/windows
+- Indicator metadata and categorization
 
 **Verification:**
 - All code compiles successfully
