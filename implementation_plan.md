@@ -1516,31 +1516,32 @@ See Phase 5 for detailed implementation tasks.
 - [ ] Integrate with external data provider (Alpha Vantage, Polygon.io, etc.)
 - [ ] Unit tests for fundamental filters
 
-#### 5.3.7 Filter Configuration & Session Support ⏳
+#### 5.3.7 Filter Configuration & Session Support ✅ COMPLETE
 
 **5.3.7.1 Session Detection** ✅
 - [x] Implement market session detection (Pre-Market: 4:00-9:30, Market: 9:30-16:00, Post-Market: 16:00-20:00 ET)
-- [ ] Add session-aware filtering in scan loop (Phase 6)
-- [ ] Support "Calculated During" configuration per filter (Phase 6)
+- [x] Add session-aware filtering in scan loop
+- [x] Support "Calculated During" configuration per filter
 - [x] Add session metadata to `SymbolState`
 
-**5.3.7.2 Volume Threshold Enforcement** ⏳
-- [ ] Implement volume threshold pre-filtering
-- [ ] Skip filter evaluation if volume < threshold
-- [ ] Support per-filter volume threshold configuration
-- [ ] Add volume threshold to rule conditions (optional)
+**5.3.7.2 Volume Threshold Enforcement** ✅
+- [x] Implement volume threshold pre-filtering
+- [x] Skip filter evaluation if volume < threshold
+- [x] Support per-filter volume threshold configuration
+- [x] Add volume threshold to rule conditions (optional, default: 0)
+- [x] Intelligent volume checking with fallback strategies
 
-**5.3.7.3 Timeframe Support** ⏳
-- [ ] Extend metric naming convention to support timeframes: `{metric}_{timeframe}`
-- [ ] Update rule parser to support timeframe selection
-- [ ] Add timeframe validation in rule validation
-- [ ] Support timeframe in metric resolver
+**5.3.7.3 Timeframe Support** ✅
+- [x] Extend metric naming convention to support timeframes: `{metric}_{timeframe}`
+- [x] Update rule parser to automatically extract timeframe from metric names
+- [x] Add timeframe validation in rule validation
+- [x] Support timeframe in metric resolver (metrics already named with timeframes)
 
-**5.3.7.4 Value Type Support** ⏳
-- [ ] Support both absolute ($) and percentage (%) variants for applicable filters
-- [ ] Add both metrics: `{metric}` and `{metric}_pct`
-- [ ] Update rule parser to support value type selection
-- [ ] Add value type validation
+**5.3.7.4 Value Type Support** ✅
+- [x] Support both absolute ($) and percentage (%) variants for applicable filters
+- [x] Metrics named with `_pct` suffix for percentage, without for absolute
+- [x] Update rule parser to automatically extract value type from metric names
+- [x] Add value type validation
 
 #### 5.3.8 Performance Optimization ⏳
 
