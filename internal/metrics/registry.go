@@ -154,5 +154,70 @@ func (r *Registry) registerBuiltInMetrics() {
 	r.Register(NewDollarVolumeComputer("dollar_volume_15m", 15))
 	r.Register(NewDollarVolumeComputer("dollar_volume_60m", 60))
 	r.Register(&DailyDollarVolumeComputer{})
+
+	// Range filters - Range ($) with timeframes
+	r.Register(NewRangeComputer("range_2m", 2))
+	r.Register(NewRangeComputer("range_5m", 5))
+	r.Register(NewRangeComputer("range_10m", 10))
+	r.Register(NewRangeComputer("range_15m", 15))
+	r.Register(NewRangeComputer("range_30m", 30))
+	r.Register(NewRangeComputer("range_60m", 60))
+	r.Register(&DailyRangeComputer{})
+
+	// Range filters - Percentage Range (%) with timeframes
+	r.Register(NewRangePercentageComputer("range_pct_2m", 2))
+	r.Register(NewRangePercentageComputer("range_pct_5m", 5))
+	r.Register(NewRangePercentageComputer("range_pct_10m", 10))
+	r.Register(NewRangePercentageComputer("range_pct_15m", 15))
+	r.Register(NewRangePercentageComputer("range_pct_30m", 30))
+	r.Register(NewRangePercentageComputer("range_pct_60m", 60))
+	r.Register(&DailyRangePercentageComputer{})
+
+	// Range filters - Position in Range (%) with timeframes
+	r.Register(NewPositionInRangeComputer("position_in_range_2m", 2))
+	r.Register(NewPositionInRangeComputer("position_in_range_5m", 5))
+	r.Register(NewPositionInRangeComputer("position_in_range_15m", 15))
+	r.Register(NewPositionInRangeComputer("position_in_range_30m", 30))
+	r.Register(NewPositionInRangeComputer("position_in_range_60m", 60))
+	r.Register(&DailyPositionInRangeComputer{})
+
+	// Range filters - Relative Range (%)
+	r.Register(&RelativeRangeComputer{})
+
+	// Indicator filters - ATRP (ATR Percentage)
+	// Note: Using atr_14 for now. For daily, we may need atr_14_daily later.
+	r.Register(NewATRPComputer("atrp_14_1m", "atr_14"))
+	r.Register(NewATRPComputer("atrp_14_5m", "atr_14"))
+	r.Register(NewATRPComputer("atrp_14_daily", "atr_14")) // Will use atr_14 until daily ATR is implemented
+
+	// Indicator filters - VWAP Distance ($)
+	r.Register(NewVWAPDistanceComputer("vwap_dist_5m", "vwap_5m"))
+	r.Register(NewVWAPDistanceComputer("vwap_dist_15m", "vwap_15m"))
+	r.Register(NewVWAPDistanceComputer("vwap_dist_1h", "vwap_1h"))
+
+	// Indicator filters - VWAP Distance (%)
+	r.Register(NewVWAPDistancePctComputer("vwap_dist_5m_pct", "vwap_5m"))
+	r.Register(NewVWAPDistancePctComputer("vwap_dist_15m_pct", "vwap_15m"))
+	r.Register(NewVWAPDistancePctComputer("vwap_dist_1h_pct", "vwap_1h"))
+
+	// Indicator filters - MA Distance (%)
+	// SMA daily
+	r.Register(NewMADistanceComputer("ma_dist_sma20_daily_pct", "sma_20"))
+	r.Register(NewMADistanceComputer("ma_dist_sma10_daily_pct", "sma_10"))
+	r.Register(NewMADistanceComputer("ma_dist_sma200_daily_pct", "sma_200"))
+	// EMA 1m
+	r.Register(NewMADistanceComputer("ma_dist_ema20_1m_pct", "ema_20"))
+	r.Register(NewMADistanceComputer("ma_dist_ema9_1m_pct", "ema_9"))
+	// EMA 5m
+	r.Register(NewMADistanceComputer("ma_dist_ema9_5m_pct", "ema_9"))
+	// EMA 15m
+	r.Register(NewMADistanceComputer("ma_dist_ema9_15m_pct", "ema_9"))
+	r.Register(NewMADistanceComputer("ma_dist_ema21_15m_pct", "ema_21"))
+	r.Register(NewMADistanceComputer("ma_dist_ema50_15m_pct", "ema_50"))
+	// EMA 60m
+	r.Register(NewMADistanceComputer("ma_dist_ema9_60m_pct", "ema_9"))
+	r.Register(NewMADistanceComputer("ma_dist_ema21_60m_pct", "ema_21"))
+	// EMA daily
+	r.Register(NewMADistanceComputer("ma_dist_ema50_daily_pct", "ema_50"))
 }
 

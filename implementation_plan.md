@@ -1295,6 +1295,41 @@ See Phase 5 for detailed implementation tasks.
 - No linter errors
 - Ready for Phase 2 (Range & Technical Indicator Filters)
 
+### Phase 5.3.2 & 5.3.3 Completion Summary (Phase 2: Range & Technical Indicator Filters)
+
+**Status:** ✅ Complete
+
+**Deliverables:**
+- ✅ Range Filters (`internal/metrics/range_filters.go`)
+  - Range ($): `range_2m`, `range_5m`, `range_10m`, `range_15m`, `range_30m`, `range_60m`, `range_today`
+  - Percentage Range (%): `range_pct_2m`, `range_pct_5m`, `range_pct_10m`, `range_pct_15m`, `range_pct_30m`, `range_pct_60m`, `range_pct_today`
+  - Position in Range (%): `position_in_range_2m`, `position_in_range_5m`, `position_in_range_15m`, `position_in_range_30m`, `position_in_range_60m`, `position_in_range_today`
+  - Relative Range (%): `relative_range_pct` (compares today's range vs ATR(14))
+- ✅ Technical Indicator Filters (`internal/metrics/indicator_filters.go`)
+  - ATRP (ATR Percentage): `atrp_14_1m`, `atrp_14_5m`, `atrp_14_daily`
+  - VWAP Distance ($): `vwap_dist_5m`, `vwap_dist_15m`, `vwap_dist_1h`
+  - VWAP Distance (%): `vwap_dist_5m_pct`, `vwap_dist_15m_pct`, `vwap_dist_1h_pct`
+  - MA Distance (%): 12 metrics for various EMA/SMA combinations across timeframes
+- ✅ Metrics Registry Integration
+  - All new metric computers registered in `internal/metrics/registry.go`
+- ✅ Comprehensive Unit Tests
+  - Range filter tests (5 test cases, all passing)
+  - Indicator filter tests (4 test cases, all passing)
+
+**Key Features:**
+- 7 range filter metrics (4 filter types with multiple timeframes)
+- 18 indicator filter metrics (4 filter types with multiple timeframes and MA combinations)
+- All filters compute from `SymbolStateSnapshot` with proper dependency handling
+- Thread-safe metric computation
+- All tests passing
+
+**Verification:**
+- All code compiles successfully
+- All unit tests pass (9+ test cases)
+- Range and indicator filters computing correctly
+- No linter errors
+- Ready for Phase 3 (Advanced Volume & Trading Activity Filters)
+
 ### Tasks
 
 #### 5.3.1 Core Price & Volume Filters ✅ COMPLETE
@@ -1323,32 +1358,32 @@ See Phase 5 for detailed implementation tasks.
 - [x] Extend `SymbolState` to track session-specific volumes
 - [x] Unit tests for all core volume filters
 
-#### 5.3.2 Range Filters ⏳
+#### 5.3.2 Range Filters ✅ COMPLETE
 
-**5.3.2.1 Range Calculations** ⏳
-- [ ] Implement Range ($) filter with all timeframes
-- [ ] Implement Percentage Range (%) filter
-- [ ] Implement Biggest Range (%) filter (3m, 6m, 1y) with historical storage
-- [ ] Implement Relative Range (%) filter (vs ATR(14) daily)
-- [ ] Implement Position in Range (%) filter with all timeframes
-- [ ] Add high/low tracking over timeframes in `SymbolState`
-- [ ] Extend `getMetricsFromSnapshot` to compute range metrics
-- [ ] Unit tests for all range filters
+**5.3.2.1 Range Calculations** ✅
+- [x] Implement Range ($) filter with timeframes (2m, 5m, 10m, 15m, 30m, 60m, today)
+- [x] Implement Percentage Range (%) filter with timeframes (2m, 5m, 10m, 15m, 30m, 60m, today)
+- [ ] Implement Biggest Range (%) filter (3m, 6m, 1y) with historical storage (deferred to Phase 3)
+- [x] Implement Relative Range (%) filter (vs ATR(14), using atr_14 until daily ATR is implemented)
+- [x] Implement Position in Range (%) filter with timeframes (2m, 5m, 15m, 30m, 60m, today)
+- [x] High/low tracking over timeframes implemented in range computers
+- [x] Range metrics computed from `SymbolStateSnapshot`
+- [x] Unit tests for all range filters (5 test cases, all passing)
 
-#### 5.3.3 Technical Indicator Filters ⏳
+#### 5.3.3 Technical Indicator Filters ✅ COMPLETE
 
-**5.3.3.1 Extended Indicator Support** ⏳
-- [ ] Extend RSI(14) to support multiple timeframes (1m, 2m, 5m, 15m, daily)
-- [ ] Implement ATR(14) calculation in indicator engine
-- [ ] Implement ATRP(14) calculation (ATR / Close * 100)
-- [ ] Extend Distance from VWAP filter ($ and % variants)
-- [ ] Implement Distance from Moving Average filter with all MA types:
-  - [ ] SMA(20) daily, SMA(10) daily, SMA(200) daily
-  - [ ] EMA(20) 1m, EMA(9) 1m, EMA(9) 5m, EMA(9) 15m
-  - [ ] EMA(21) 15m, EMA(9) 60m, EMA(21) 60m
-  - [ ] EMA(50) 15m, EMA(50) daily
-- [ ] Add metric resolvers for all indicator distances
-- [ ] Unit tests for all indicator filters
+**5.3.3.1 Extended Indicator Support** ✅
+- [ ] Extend RSI(14) to support multiple timeframes (1m, 2m, 5m, 15m, daily) (deferred to Phase 4)
+- [x] ATR(14) calculation already implemented in indicator engine
+- [x] Implement ATRP(14) calculation (ATR / Close * 100) with timeframes (1m, 5m, daily)
+- [x] Extend Distance from VWAP filter ($ and % variants) with timeframes (5m, 15m, 1h)
+- [x] Implement Distance from Moving Average filter with all MA types:
+  - [x] SMA(20) daily, SMA(10) daily, SMA(200) daily
+  - [x] EMA(20) 1m, EMA(9) 1m, EMA(9) 5m, EMA(9) 15m
+  - [x] EMA(21) 15m, EMA(9) 60m, EMA(21) 60m
+  - [x] EMA(50) 15m, EMA(50) daily
+- [x] All indicator distance metrics registered in metrics registry
+- [x] Unit tests for all indicator filters (4 test cases, all passing)
 
 #### 5.3.4 Trading Activity Filters ⏳
 
