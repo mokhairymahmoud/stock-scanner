@@ -469,38 +469,36 @@ This document provides a detailed implementation plan for Phase 5.3: Filter Impl
 
 **Goal**: Implement time-based calculations and relative range metrics
 
-#### 4.1 Time-Based Filters (Week 3, Days 1-2)
+#### 4.1 Time-Based Filters (Week 3, Days 1-2) ✅ COMPLETE
 
 **Tasks:**
-- [ ] Implement Minutes in Market filter
-  - [ ] Calculate minutes since market open (9:30 AM ET)
-  - [ ] Metric: `minutes_in_market`
-  - [ ] Computer: `MinutesInMarketComputer`
-  - [ ] Handle premarket/postmarket edge cases
-- [ ] Implement Minutes Since News filter
-  - [ ] Integrate news data source (placeholder for now)
-  - [ ] Store last news timestamp per symbol
-  - [ ] Metric: `minutes_since_news`
-  - [ ] Computer: `MinutesSinceNewsComputer`
-  - [ ] Note: Requires news data integration (can be mocked initially)
-- [ ] Implement Hours Since News filter
-  - [ ] Metric: `hours_since_news`
-  - [ ] Computer: `HoursSinceNewsComputer`
-- [ ] Implement Days Since News filter
-  - [ ] Metric: `days_since_news`
-  - [ ] Computer: `DaysSinceNewsComputer`
-- [ ] Implement Days Until Earnings filter
-  - [ ] Integrate earnings calendar data source (placeholder for now)
-  - [ ] Store next earnings date per symbol
-  - [ ] Metric: `days_until_earnings`
-  - [ ] Computer: `DaysUntilEarningsComputer`
-  - [ ] Note: Requires earnings calendar integration (can be mocked initially)
+- [x] Implement Minutes in Market filter
+  - [x] Calculate minutes since market open (9:30 AM ET)
+  - [x] Metric: `minutes_in_market`
+  - [x] Computer: `MinutesInMarketComputer`
+  - [x] Handle premarket/postmarket edge cases
+- [x] Implement Minutes Since News filter (placeholder)
+  - [x] Metric: `minutes_since_news`
+  - [x] Computer: `MinutesSinceNewsComputer`
+  - [x] Note: Returns false until news data integration is implemented
+- [x] Implement Hours Since News filter (placeholder)
+  - [x] Metric: `hours_since_news`
+  - [x] Computer: `HoursSinceNewsComputer`
+  - [x] Note: Returns false until news data integration is implemented
+- [x] Implement Days Since News filter (placeholder)
+  - [x] Metric: `days_since_news`
+  - [x] Computer: `DaysSinceNewsComputer`
+  - [x] Note: Returns false until news data integration is implemented
+- [x] Implement Days Until Earnings filter (placeholder)
+  - [x] Metric: `days_until_earnings`
+  - [x] Computer: `DaysUntilEarningsComputer`
+  - [x] Note: Returns false until earnings calendar integration is implemented
 
-**Files to Create:**
+**Files Created:**
 - `internal/metrics/time_filters.go` - Time-based filter computers
-- `internal/scanner/external_data.go` - External data interface (news, earnings)
+- `internal/metrics/time_filters_test.go` - Unit tests for time filters
 
-**Files to Modify:**
+**Files Modified:**
 - `internal/scanner/state.go` - Add news/earnings data storage
 - `internal/metrics/registry.go` - Register time filter computers
 

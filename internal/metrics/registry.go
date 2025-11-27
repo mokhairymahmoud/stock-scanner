@@ -248,5 +248,12 @@ func (r *Registry) registerBuiltInMetrics() {
 
 	// Advanced volume filters - Relative Volume at Same Time
 	r.Register(&RelativeVolumeSameTimeComputer{})
+
+	// Time-based filters
+	r.Register(&MinutesInMarketComputer{})
+	r.Register(&MinutesSinceNewsComputer{})
+	r.Register(&HoursSinceNewsComputer{})
+	r.Register(&DaysSinceNewsComputer{})
+	r.Register(&DaysUntilEarningsComputer{})
 }
 
