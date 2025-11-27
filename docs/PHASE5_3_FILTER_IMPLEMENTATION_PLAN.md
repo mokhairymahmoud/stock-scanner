@@ -499,8 +499,49 @@ This document provides a detailed implementation plan for Phase 5.3: Filter Impl
 - `internal/metrics/time_filters_test.go` - Unit tests for time filters
 
 **Files Modified:**
-- `internal/scanner/state.go` - Add news/earnings data storage
-- `internal/metrics/registry.go` - Register time filter computers
+- `internal/metrics/registry.go` - Registered time-based filter computers
+
+### Phase 4 Completion Summary
+
+**Status:** ✅ Complete (with placeholders for external data integration)
+
+**Deliverables:**
+- ✅ Time-Based Filters (`internal/metrics/time_filters.go`)
+  - Minutes in Market: `minutes_in_market` (fully functional)
+  - Minutes Since News: `minutes_since_news` (placeholder, requires news data integration)
+  - Hours Since News: `hours_since_news` (placeholder, requires news data integration)
+  - Days Since News: `days_since_news` (placeholder, requires news data integration)
+  - Days Until Earnings: `days_until_earnings` (placeholder, requires earnings calendar integration)
+- ✅ Metrics Registry Integration
+  - All time-based filter computers registered in `internal/metrics/registry.go`
+- ✅ Comprehensive Unit Tests
+  - Time filter tests (6 test cases for MinutesInMarket, all passing)
+  - Placeholder tests for news/earnings filters (verify they return false until integration)
+
+**Key Features:**
+- 5 time-based filter metrics (1 fully functional, 4 placeholders)
+- Minutes in Market calculates correctly for market, premarket, postmarket, and closed sessions
+- News and earnings filters ready for external data integration
+- All filters compute from `SymbolStateSnapshot`
+- Thread-safe metric computation
+- All tests passing
+
+**Verification:**
+- All code compiles successfully
+- All unit tests pass (6+ test cases)
+- Minutes in Market filter computing correctly
+- No linter errors
+
+**Notes:**
+- Minutes in Market is fully functional and handles all market sessions correctly
+- News and earnings filters are implemented as placeholders that return false until external data sources are integrated
+- Future work: Integrate news data source and earnings calendar data source to enable news/earnings filters
+
+**Next Steps:**
+- Phase 5: Extended Technical Indicators (RSI timeframe extension)
+- External data integration for news and earnings filters (can be done in parallel)
+
+---
 
 #### 4.2 Relative Range Filter (Week 3, Day 2)
 
